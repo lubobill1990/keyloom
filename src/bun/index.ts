@@ -15,6 +15,7 @@ let clipboardTimer: ReturnType<typeof setTimeout> | null = null;
 let lastStatus: VaultStatus | null = null;
 let wasOpen = false;
 let revision = 0;
+let sensitiveEpoch = 0;
 let allowQuit = false;
 let closeState: CloseState | null = null;
 
@@ -26,11 +27,32 @@ function clearClipboard() {
 
 async function session(request: ServiceRequest) {
   const generation = ++revision;
+  if (["lock", "unlock", "create", "migrate", "select"].includes(request.method)) sensitiveEpoch++;
   const data = await service.request(request);
+  if (generation !== revision && isStatus(data)) return readCurrentStatus();
   if (generation === revision && isStatus(data)) {
     lastStatus = data;
     wasOpen = data.state === "open";
   }
+  return data;
+}
+
+async function readCurrentStatus() {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const generation = revision;
+    const data = await service.request({ method: "status" });
+    if (generation !== revision) continue;
+    if (!isStatus(data)) throw new Error("Invalid vault status.");
+    lastStatus = data;
+    return data;
+  }
+  throw new Error("The vault session changed during the request. Retry the operation.");
+}
+
+async function recordRequest(request: ServiceRequest) {
+  const generation = sensitiveEpoch;
+  const data = await service.request(request);
+  if (generation !== sensitiveEpoch) throw new Error("The vault session changed; stale record contents were discarded.");
   return data;
 }
 
@@ -79,12 +101,12 @@ async function dispatch(request: ClientRequest): Promise<unknown> {
     case "draft.get": return pendingDraft;
     case "draft.clear": pendingDraft = null; return true;
     case "record.get": {
-      const record = await service.request(request);
+      const record = await recordRequest(request);
       pendingDraft = null;
       return record;
     }
     case "record.save": {
-      const saved = await service.request(request);
+      const saved = await recordRequest(request);
       reconcileDraft(request.record, saved);
       return saved;
     }
@@ -128,7 +150,7 @@ async function dispatch(request: ClientRequest): Promise<unknown> {
       const paths = await dialog("open", "选择要加密保存的文件（可多选）");
       if (!Array.isArray(paths) || paths.length === 0) return null;
       if (!paths.every((path) => typeof path === "string")) throw new Error("Invalid file paths.");
-      return service.request({ ...request, paths });
+      return recordRequest({ ...request, paths });
     }
     case "attachment.export": {
       const path = await chooseSave("将附件解密并另存为明文文件", request.filename);
@@ -143,25 +165,25 @@ async function dispatch(request: ClientRequest): Promise<unknown> {
     case "lock":
       clearClipboard(); pendingDraft = null;
       return session(request);
+    case "cli.access":
+    case "settings":
+    case "sync.configure":
+      return session(request);
     case "status": {
-      const data = await service.request(request);
-      if (isStatus(data)) lastStatus = data;
-      return data;
+      return readCurrentStatus();
     }
     case "records":
+    case "record.duplicate":
+    case "attachment.remove":
+      return recordRequest(request);
     case "record.verify":
     case "previews.clear":
     case "activity":
     case "record.delete":
-    case "record.duplicate":
-    case "attachment.remove":
     case "password.change":
-    case "settings":
     case "sync.status":
     case "sync.check":
     case "sync.start":
-    case "sync.configure":
-    case "cli.access":
     case "agents.install":
       return service.request(request satisfies ServiceRequest);
     default: throw new Error("Unsupported desktop operation.");
@@ -208,9 +230,9 @@ function windowState(): WindowState {
 function reportError(error: unknown) {
   rpc.send.backendError({ message: error instanceof Error ? error.message : "Application operation failed." });
 }
-service.onFailure = (message) => { clearClipboard(); pendingDraft = null; rpc.send.backendError({ message }); };
+service.onFailure = (message) => { revision++; sensitiveEpoch++; wasOpen = false; clearClipboard(); pendingDraft = null; rpc.send.backendError({ message }); };
 service.onLocked = (pendingPreviews) => {
-  revision++; wasOpen = false;
+  revision++; sensitiveEpoch++; wasOpen = false;
   clearClipboard(); pendingDraft = null;
   rpc.send.locked({ pendingPreviews });
 };

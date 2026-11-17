@@ -1,5 +1,6 @@
 import os
 import shutil
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,13 +21,18 @@ def template_path() -> Path:
     return Path(__file__).resolve().parent.parent / "assets" / "skills" / "keyloom" / "SKILL.md"
 
 
-def install_skills(agents: list[str], home: Path | None = None, overwrite: bool = False) -> dict:
+def install_skills(agents: list[str], home: Path | None = None, overwrite: bool = False, state: Path | None = None) -> dict:
     if not agents or len(set(agents)) != len(agents) or any(agent not in AGENT_DIRECTORIES for agent in agents):
         raise KeyloomError("Choose copilot, claude, and/or codex.")
     home = (home or Path.home()).resolve()
+    arguments = [str(Path(sys.executable).resolve())]
+    if not getattr(sys, "frozen", False):
+        arguments.append(str(Path(__file__).with_name("keyloom_cli.py")))
+    if state is not None:
+        arguments.extend(["--state-dir", str(state.resolve())])
     executable = (
-        str(Path(sys.executable).resolve()) if getattr(sys, "frozen", False)
-        else f'{sys.executable} "{Path(__file__).with_name("keyloom_cli.py")}"'
+        "& " + " ".join("'" + value.replace("'", "''") + "'" for value in arguments)
+        if sys.platform == "win32" else " ".join(shlex.quote(value) for value in arguments)
     )
     contents = template_path().read_text(encoding="utf-8").replace("{{KEYLOOM_CLI}}", executable)
     targets = [home / AGENT_DIRECTORIES[agent] / "keyloom" / "SKILL.md" for agent in agents]

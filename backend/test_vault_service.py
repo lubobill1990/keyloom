@@ -77,7 +77,7 @@ class VaultServiceTests(unittest.TestCase):
             "field": "Files", "attachment": attachment["id"],
         })
         destination = Path(opened["path"])
-        self.assertTrue(destination.is_relative_to(self.root / "state" / "previews"))
+        self.assertTrue(destination.resolve().is_relative_to((self.root / "state" / "previews").resolve()))
         self.assertEqual(b"synthetic attachment contents", destination.read_bytes())
         self.assertEqual(0, self.service.dispatch({"method": "lock"})["pendingPreviews"])
         self.assertFalse(destination.exists())

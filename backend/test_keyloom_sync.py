@@ -43,11 +43,21 @@ class CiphertextGitBackupTests(unittest.TestCase):
         self.assertEqual("synced", result["phase"])
         self.assertEqual(result["lastCommit"], self.git_remote("rev-parse", "refs/heads/main").decode().strip())
         files = self.git_remote("ls-tree", "-r", "--name-only", "main").decode().splitlines()
-        self.assertEqual({"vault.json", f"records/{self.record['id']}.enc.json"}, set(files))
+        self.assertEqual({"vault.json", ".gitattributes", f"records/{self.record['id']}.enc.json"}, set(files))
         content = self.git_remote("show", f"main:records/{self.record['id']}.enc.json")
         self.assertNotIn(b"synthetic-secret-never-in-git", content)
         self.assertNotIn(b"Synthetic private title", content)
         self.assertNotIn("ignored.recovery.json", files)
+
+    def test_git_line_ending_rules_do_not_transform_ciphertext_bytes(self):
+        path = self.data / "vault.json"
+        raw = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+        path.write_bytes(raw)
+        mirror = self.sync._prepare_mirror()
+        subprocess.run(["git", "-C", str(mirror), "config", "core.autocrlf", "true"], capture_output=True, check=True)
+        (mirror / ".git" / "info" / "attributes").write_text("* text eol=crlf\n", encoding="ascii")
+        self.sync.push()
+        self.assertEqual(raw, self.git_remote("show", "main:vault.json"))
 
     def test_actual_content_changes_are_detected_even_if_mtime_is_restored(self):
         self.sync.push()

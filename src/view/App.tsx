@@ -86,6 +86,7 @@ export function App() {
   const [syncForm, setSyncForm] = useState<SyncConfiguration>({ enabled: false, remote: "", branch: "main", intervalMinutes: 15, dedicatedRepositoryConfirmed: false });
   const [skillAgents, setSkillAgents] = useState(["copilot", "claude", "codex"]);
   const [overwriteSkills, setOverwriteSkills] = useState(false);
+  const [cliIntent, setCliIntent] = useState<boolean | null>(null);
   const [modal, setModal] = useState<Modal>(null);
   const [reveal, setReveal] = useState<number | null>(null);
   const [addMenu, setAddMenu] = useState(false);
@@ -600,7 +601,7 @@ export function App() {
         {status?.sync.error && <p className="settings-warning" role="alert">{status.sync.error}</p>}
         <p className="small-note">最近成功推送：{status?.sync.lastPushedAt ? new Date(status.sync.lastPushedAt).toLocaleString("zh-CN") : "尚无成功推送"}{status?.sync.lastCommit ? ` · ${status.sync.lastCommit.slice(0, 8)}` : ""}。远端分叉时会停止，不会强推或自动覆盖远端。</p>
         <h3 className="settings-heading"><Terminal size={14} />CLI 与 Agent</h3>
-        <label className="settings-row"><div><strong>允许本机 CLI 访问</strong><small>仅本次解锁有效；允许读取索引和写入，CLI 不返回字段值。锁定或开始关闭时自动撤销。</small></div><input type="checkbox" aria-label="允许本机 CLI 访问" checked={status?.cliWriteEnabled || false} disabled={busy || status?.state !== "open"} onChange={(event) => { const enabled = event.target.checked; void run(async () => { const data = await request({ method: "cli.access", enabled }); if (!isStatus(data)) throw new Error("Invalid CLI access response."); setStatus(data); }); }} /></label>
+        <label className="settings-row"><div><strong>允许本机 CLI 访问{cliIntent !== null ? "（正在更新授权…）" : ""}</strong><small>仅本次解锁有效；允许读取索引和写入，CLI 不返回字段值。锁定或开始关闭时自动撤销。</small></div><input type="checkbox" aria-label="允许本机 CLI 访问" aria-busy={cliIntent !== null} checked={cliIntent ?? status?.cliWriteEnabled ?? false} disabled={busy || status?.state !== "open"} onChange={(event) => { const enabled = event.target.checked; setCliIntent(enabled); void run(async () => { try { const data = await request({ method: "cli.access", enabled }); if (!isStatus(data)) throw new Error("Invalid CLI access response."); setStatus(data); } finally { setCliIntent(null); } }); }} /></label>
         <div className="agent-targets">{[["copilot", "GitHub Copilot"], ["claude", "Claude Code"], ["codex", "Codex"]].map(([agent, label]) => <label className="checkbox-label" key={agent}><input type="checkbox" checked={skillAgents.includes(agent)} onChange={(event) => setSkillAgents(event.target.checked ? [...skillAgents, agent] : skillAgents.filter((value) => value !== agent))} />{label}</label>)}</div>
         <label className="checkbox-label"><input type="checkbox" checked={overwriteSkills} onChange={(event) => setOverwriteSkills(event.target.checked)} />覆盖已有的 Keyloom Skill（先保留备份）</label>
         <div className="settings-inline-actions"><Button disabled={busy || skillAgents.length === 0} onClick={() => void run(async () => {

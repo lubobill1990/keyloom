@@ -435,7 +435,7 @@ class VaultService:
             self.cli_write_enabled = enabled
             return self.status()
         if method == "agents.install":
-            return install_skills(string_list(request, "agents"), overwrite=request.get("overwrite") is True)
+            return install_skills(string_list(request, "agents"), overwrite=request.get("overwrite") is True, state=self.state_directory)
         if method in ("sync.status", "sync.check"):
             return self.sync.scan()
         if method == "sync.configure":

@@ -105,7 +105,7 @@ def _daemon(arguments) -> dict:
 def execute(arguments) -> dict:
     if arguments.command == "agents":
         return install_skills(list(AGENT_DIRECTORIES) if arguments.all else arguments.agent,
-                              arguments.home, arguments.overwrite)
+                              arguments.home, arguments.overwrite, getattr(arguments, "state_dir", None))
     if arguments.command == "daemon":
         return _daemon(arguments)
     client = IPCClient(getattr(arguments, "state_dir", None))

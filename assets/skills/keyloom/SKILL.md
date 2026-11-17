@@ -6,8 +6,8 @@ license: MIT
 
 # Keyloom
 
-The CLI executable is `{{KEYLOOM_CLI}}`.
-Use that executable in place of `keyloom` in the examples if it is not on PATH.
+The CLI command for this profile is `{{KEYLOOM_CLI}}`.
+On Windows, run these examples in PowerShell. Use that command in place of `keyloom` in the examples if it is not on PATH.
 
 - The user unlocks Keyloom and enables **CLI writes for this unlock session** in its UI. If access is locked or denied, stop and ask the user to unlock/approve in Keyloom. Never ask for a master password in chat.
 - Discover the supported interface with `keyloom --help` and `keyloom item --help`. Use `keyloom status --json` and `keyloom item list --json` for metadata.

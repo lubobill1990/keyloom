@@ -20,7 +20,8 @@ from keyloom_errors import KeyloomError
 
 
 UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-CIPHER_PATH = re.compile(rf"(?:vault\.json|records/{UUID}\.enc\.json|attachments/{UUID}\.enc)")
+CIPHER_PATH = re.compile(rf"(?:vault\.json|\.gitattributes|records/{UUID}\.enc\.json|attachments/{UUID}\.enc)")
+BACKUP_ATTRIBUTES = b"* -text -filter -ident -working-tree-encoding\n"
 BUSY_PHASES = {"preparing", "pushing"}
 
 
@@ -212,6 +213,7 @@ class GitSync:
                            GIT_SSH_COMMAND="ssh -o BatchMode=yes -o StrictHostKeyChecking=yes")
         command = [
             "git", "-C", str(mirror), "-c", "core.hooksPath=" + str(self.state / "no-hooks"),
+            "-c", "core.autocrlf=false",
             "-c", "protocol.allow=never", "-c", "protocol.https.allow=always",
             "-c", "protocol.ssh.allow=always", "-c", f"protocol.file.allow={'always' if self.allow_files else 'never'}",
             *arguments,
@@ -253,7 +255,40 @@ class GitSync:
             self._git(mirror, "remote", "add", "origin", self.config["remote"])
         if marker.read_text(encoding="ascii") != self.vault_id:
             raise KeyloomError("Backup mirror identity mismatch.")
+        info = mirror / ".git" / "info"
+        if info.is_symlink() or info.is_junction():
+            raise KeyloomError("Backup Git metadata cannot contain links.")
+        info.mkdir(exist_ok=True)
+        attributes = info / "attributes"
+        if attributes.is_symlink():
+            raise KeyloomError("Backup attributes cannot be a link.")
+        attributes.write_bytes(BACKUP_ATTRIBUTES)
         return mirror
+
+    def _verify_index(self, mirror: Path, snapshot: Path, files: list[str]) -> None:
+        algorithm = self._git(mirror, "rev-parse", "--show-object-format").stdout.strip()
+        if algorithm not in ("sha1", "sha256"):
+            raise KeyloomError("Unsupported Git object format.", "sync_verification")
+        indexed = {}
+        for entry in self._git(mirror, "ls-files", "--stage", "-z").stdout.split("\0"):
+            if not entry:
+                continue
+            metadata, relative = entry.split("\t", 1)
+            mode, digest, stage = metadata.split()
+            if stage != "0" or mode not in ("100644", "100755"):
+                raise KeyloomError("Backup index contains an unexpected entry.", "sync_verification")
+            indexed[relative] = digest
+        if set(indexed) != set(files):
+            raise KeyloomError("Backup index does not match the ciphertext snapshot.", "sync_verification")
+        for relative in files:
+            path = snapshot / relative
+            expected = hashlib.new(algorithm)
+            expected.update(f"blob {path.stat().st_size}\0".encode("ascii"))
+            with path.open("rb") as source:
+                while block := source.read(1024 * 1024):
+                    expected.update(block)
+            if indexed[relative] != expected.hexdigest():
+                raise KeyloomError("Git transformed ciphertext bytes. No backup was pushed.", "sync_verification")
 
     def _push_held(self) -> dict:
         self._deadline = time.monotonic() + 180
@@ -266,6 +301,7 @@ class GitSync:
             with tempfile.TemporaryDirectory(prefix="snapshot-", dir=staging_root) as directory:
                 snapshot = Path(directory)
                 fingerprint = self._snapshot(snapshot)
+                (snapshot / ".gitattributes").write_bytes(BACKUP_ATTRIBUTES)
                 mirror = self._prepare_mirror()
                 branch = self.config["branch"]
                 remote = self._git(mirror, "ls-remote", "--heads", "origin", f"refs/heads/{branch}").stdout.strip()
@@ -294,6 +330,7 @@ class GitSync:
                     shutil.copyfile(snapshot / relative, target)
                 for start in range(0, len(files), 128):
                     self._git(mirror, "add", "--force", "--", *files[start:start + 128])
+                self._verify_index(mirror, snapshot, files)
                 changed = self._git(mirror, "diff", "--cached", "--quiet", allowed=(0, 1))
                 if changed.returncode:
                     self._git(mirror, "-c", "user.name=Keyloom", "-c", "user.email=keyloom@localhost",

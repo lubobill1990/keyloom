@@ -115,9 +115,10 @@ Only these paths are eligible:
 vault.json
 records/<uuid>.enc.json
 attachments/<uuid>.enc
+.gitattributes  # fixed, secret-free byte-preservation policy
 ```
 
-Keyloom validates ciphertext envelopes and snapshots them under the vault transaction lock. It commits in an app-owned mirror, not the vault's parent Git repository, then verifies that the remote branch acknowledges the pushed commit. Recovery files, device keys, previews, exports, logs, settings and unrelated company-repository history are never staged.
+Keyloom validates ciphertext envelopes and snapshots them under the vault transaction lock. It commits in an app-owned mirror, not the vault's parent Git repository, verifies that staged Git blobs exactly match snapshot bytes, then checks the remote's commit acknowledgement. A fixed `.gitattributes` disables text conversion, filters and encoding transformations, including during normal restore clones. Recovery files, device keys, previews, exports, logs, settings and unrelated company-repository history are never staged. Git-host size limits still apply; automatic LFS conversion is intentionally disabled.
 
 This is **push-only backup**, not automatic multi-device merge. Remote divergence stops the push without force-pushing. To restore, clone the ciphertext repository, open its folder in Keyloom, and supply the separately held recovery file and master password. A new backup profile must use a fresh empty remote; adopting nonempty remotes and automatic conflict merges are intentionally not supported yet.
 
