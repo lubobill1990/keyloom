@@ -1,0 +1,8 @@
+diff --git a/dist/api/bun/core/Socket.ts b/dist/api/bun/core/Socket.ts
+--- a/dist/api/bun/core/Socket.ts
++++ b/dist/api/bun/core/Socket.ts
+@@ -67,3 +67,4 @@
+ 			server = Bun.serve<{ webviewId: number }>({
+ 				port,
++				hostname: "127.0.0.1",
+ 				fetch(req: Request, server: Server<{ webviewId: number }>) {

@@ -1,0 +1,36 @@
+{
+  "name": "keyloom-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck:sdk": "tsc --ignoreConfig --declaration --emitDeclarationOnly --noCheck --moduleResolution bundler --module esnext --target esnext --skipLibCheck --types bun --rootDir node_modules/electrobun/dist/api --outDir .sdk-types node_modules/electrobun/dist/api/bun/core/BrowserWindow.ts node_modules/electrobun/dist/api/bun/core/Utils.ts node_modules/electrobun/dist/api/bun/core/Paths.ts node_modules/electrobun/dist/api/bun/ElectrobunConfig.ts node_modules/electrobun/dist/api/browser/index.ts",
+    "typecheck": "bun run typecheck:sdk && tsc --noEmit -p tsconfig.check.json",
+    "test": "bun test src/shared",
+    "build:view": "vite build && bun scripts/licenses.ts",
+    "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts\\extract-portable.ps1\"",
+    "build:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts\\build-backend.ps1\"",
+    "build": "bun run typecheck && bun run build:view && bun run build:backend && electrobun build",
+    "build:release": "bun run typecheck && bun run build:view && bun run build:backend && electrobun build --env=stable && bun run build:portable",
+    "start": "electrobun dev",
+    "preview": "vite --host 127.0.0.1"
+  },
+  "patchedDependencies": {
+    "electrobun@1.18.1": "patches/electrobun@1.18.1.patch"
+  },
+  "dependencies": {
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.8",
+    "@types/three": "^0.165.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "electrobun": "1.18.1",
+    "typescript": "^6.0.2",
+    "vite": "^7.2.0"
+  }
+}

@@ -1,0 +1,22 @@
+[project]
+name = "keyloom"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["cryptography>=45,<47"]
+license = "MIT"
+
+[project.scripts]
+keyloom = "keyloom_cli:main"
+
+[build-system]
+requires = ["setuptools>=77,<85"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = [
+  "keyloom_cli", "keyloom_agents", "keyloom_ipc", "keyloom_sync", "keyloom_errors",
+  "vault_service", "vault_core", "vault_crypto", "vault_device_keys", "vault_attachments",
+]
+
+[dependency-groups]
+build = ["pyinstaller>=6.16,<7"]
