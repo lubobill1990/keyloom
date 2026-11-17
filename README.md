@@ -27,7 +27,7 @@ A local encrypted vault with a compact Windows desktop, controlled CLI writes fo
 
    ```powershell
    New-Item -ItemType Directory -Path "$env:LOCALAPPDATA\Programs\Keyloom" -Force
-   tar -xf .\keyloom-0.1.0-windows-x64.tar.zst -C "$env:LOCALAPPDATA\Programs\Keyloom"
+   tar -xf .\keyloom-0.1.1-windows-x64.tar.zst -C "$env:LOCALAPPDATA\Programs\Keyloom"
    & "$env:LOCALAPPDATA\Programs\Keyloom\Keyloom\bin\launcher.exe"
    ```
 

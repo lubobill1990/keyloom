@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { filterRecords, formatSize, generatePassword, isRecord, isStatus, templates } from "./model";
+import { draftSaveState, filterRecords, formatSize, generatePassword, isRecord, isStatus, templates } from "./model";
 import type { RecordSummary } from "./types";
 
 const records: RecordSummary[] = [
@@ -8,6 +8,13 @@ const records: RecordSummary[] = [
 ];
 
 describe("private archive model", () => {
+  test("restoring an edit to the durable baseline clears the pending-save state", () => {
+    const original = { title: "Synthetic", category: "", tags: [], notes: "", fields: [] };
+    const baseline = JSON.stringify(original);
+    expect(draftSaveState(original, baseline)).toBe("saved");
+    expect(draftSaveState({ ...original, title: "Changed" }, baseline)).toBe("dirty");
+    expect(draftSaveState({ ...original, title: "Synthetic" }, baseline)).toBe("saved");
+  });
   test("filters metadata, favorites, attachment records and categories", () => {
     expect(filterRecords(records, "财务", "all").map((record) => record.id)).toEqual(["one"]);
     expect(filterRecords(records, "", "favorites")).toHaveLength(1);

@@ -529,6 +529,9 @@ class VaultService:
                 raise ServiceError("记录必须是对象")
             if "id" in record:
                 with vault._attachment_transaction_lock:
+                    current = vault.get_record(record["id"])
+                    if current == record:
+                        return current
                     if self._ui_versions.get(record["id"]) != self._record_revision(record["id"]):
                         raise KeyloomError("此记录已由 CLI 或其他客户端修改。请先重新加载，不会覆盖磁盘上的新内容。", "conflict")
                     return vault.update_record(record)

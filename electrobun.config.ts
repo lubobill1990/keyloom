@@ -4,7 +4,7 @@ export default {
   app: {
     name: "Keyloom",
     identifier: "io.github.lubobill1990.keyloom",
-    version: "0.1.0",
+    version: "0.1.1",
   },
   build: {
     useAsar: false,

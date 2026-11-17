@@ -70,6 +70,14 @@ class VaultServiceTests(unittest.TestCase):
         self.assertEqual(original_id, saved["fields"][-2]["field_id"])
         self.assertEqual(str(uuid.UUID(saved["fields"][-1]["field_id"])), saved["fields"][-1]["field_id"])
 
+    def test_saving_an_unchanged_gui_draft_does_not_rewrite_ciphertext(self):
+        record = self.record()
+        path = self.service.vault._record_path(record["id"])
+        before = path.read_bytes()
+        saved = self.service.dispatch({"method": "record.save", "record": record})
+        self.assertEqual(record, saved)
+        self.assertEqual(before, path.read_bytes())
+
     def test_preview_decrypts_into_private_directory_and_lock_cleans_it(self):
         record, attachment = self.attach()
         opened = self.service.dispatch({

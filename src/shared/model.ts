@@ -4,6 +4,10 @@ export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+export function draftSaveState(record: VaultRecord, baseline: string): "saved" | "dirty" {
+  return JSON.stringify(record) === baseline ? "saved" : "dirty";
+}
+
 export function isField(value: unknown): value is Field {
   if (!isObject(value) || typeof value.name !== "string") return false;
   if (value.type === "attachments") {

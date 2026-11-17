@@ -8,7 +8,7 @@ import {
   Minus, Square, Cloud, CloudUpload, LoaderCircle, Terminal,
 } from "lucide-react";
 import type { ClientRequest, CloseState, RecordSummary, SyncConfiguration, SyncStatus, VaultRecord, VaultStatus, WindowState } from "../shared/types";
-import { filterRecords, formatSize, generatePassword, isCloseState, isObject, isRecord, isStatus, isSummary, isSyncStatus, isWindowState, templates } from "../shared/model";
+import { draftSaveState, filterRecords, formatSize, generatePassword, isCloseState, isObject, isRecord, isStatus, isSummary, isSyncStatus, isWindowState, templates } from "../shared/model";
 import { call, isDesktop, onCloseRequest, onLock, onRecordChanged, onVaultStatus, onWindowState } from "./api";
 import brandIcon from "../../assets/brand/icon.png";
 
@@ -234,9 +234,11 @@ export function App() {
   saveAction.current = saveAndVerify;
 
   useEffect(() => {
-    if (!record || JSON.stringify(record) === baseline.current) return;
+    if (!record) return;
+    const state = draftSaveState(record, baseline.current);
+    setSaveState(state);
+    if (state === "saved") return;
     const invalid = validate(record);
-    setSaveState("dirty");
     if (invalid) return;
     const timer = setTimeout(() => { void save().catch((error: unknown) => setError(message(error))); }, 700);
     return () => clearTimeout(timer);
@@ -479,7 +481,7 @@ export function App() {
         <div className="vault-location"><FolderOpen size={16} /><span title={status?.path}>{status?.path || (isDesktop ? "正在连接本机加密服务…" : "请从桌面程序启动")}</span></div>
         <Button className="choose-vault" disabled={busy} onClick={() => void run(async () => { const data = await request({ method: "choose" }); if (data !== null) { if (!isStatus(data)) throw new Error("路径响应无效"); setStatus(data); setUnlockPassword(""); setPasswordConfirm(""); } })}><FolderOpen size={16} />选择已有密库 / 新建位置</Button>
         <p className="unlock-boundary"><ShieldCheck size={15} />元密码仅用于本机解密，不会上传或写入磁盘。</p>
-      </div><span className="unlock-version">Keyloom DESKTOP <span>0.1.0</span></span></section>
+      </div><span className="unlock-version">Keyloom DESKTOP <span>0.1.1</span></span></section>
     </div> : <div className="workspace">
       <aside className="sidebar">
         <Button className="new-record" onClick={() => openModal("new")} disabled={busy}><Plus size={18} />新增记录<span>Ctrl N</span></Button>
@@ -493,7 +495,7 @@ export function App() {
         <div className="sidebar-bottom">
           <button className="nav-item" onClick={() => openModal("generator")}><WandSparkles size={18} />密码生成器</button>
           <button className="nav-item" onClick={() => openModal("settings")}><Settings2 size={18} />密库与安全设置</button>
-          <div className="sidebar-meta">本地密库 · v0.1.0</div>
+          <div className="sidebar-meta">本地密库 · v0.1.1</div>
         </div>
       </aside>
       <main className="main-workspace">
