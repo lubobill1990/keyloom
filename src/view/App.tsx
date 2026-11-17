@@ -45,6 +45,7 @@ type Modal = "new" | "settings" | "updates" | "password" | "rotate" | "delete" |
 type SaveState = "saved" | "dirty" | "saving" | "error";
 const demoSync: SyncStatus = { enabled: false, remote: "", branch: "main", intervalMinutes: 15, phase: "disabled", busy: false, dirty: false, error: null, errorCode: null, lastPushedAt: null, lastCommit: null };
 const demo = import.meta.env.DEV && new URLSearchParams(location.search).get("demo") === "1";
+const modifier = /Mac/.test(navigator.platform) ? "⌘ " : "Ctrl ";
 const demoSummaries: RecordSummary[] = [
   { id: "demo-1", title: "支付宝 · 企业商家", category: "支付账户", tags: ["财务", "收藏"], updated_at: "2026-11-17T01:32:00+00:00", fieldCount: 5, attachmentCount: 2 },
   { id: "demo-2", title: "公司官网", category: "网站登录", tags: ["研发"], updated_at: "2026-11-16T18:20:00+00:00", fieldCount: 3, attachmentCount: 0 },
@@ -456,7 +457,7 @@ export function App() {
   const attachmentCount = record?.fields.reduce((count, field) => count + (field.type === "attachments" ? field.attachments.length : 0), 0) || 0;
   const filterTitle = filter === "all" ? "全部记录" : filter === "favorites" ? "我的收藏" : filter === "attachments" ? "含附件记录" : filter.replace("category:", "");
   const saveLabel = recordStale && saveState === "saved" ? "磁盘有更新" : { saved: verifiedAt ? "已核验" : "本机已保存", dirty: "待保存", saving: "保存中…", error: "保存失败 · 重试" }[saveState];
-  const saveHint = verifiedAt ? `已回读核验：${new Date(verifiedAt).toLocaleTimeString("zh-CN")}。点击可再次核验（Ctrl S）。` : `${record ? validate(record) || "输入后自动保存；点击可立即保存并回读核验（Ctrl S）。" : ""}`;
+  const saveHint = verifiedAt ? `已回读核验：${new Date(verifiedAt).toLocaleTimeString("zh-CN")}。点击可再次核验（${modifier}S）。` : `${record ? validate(record) || `输入后自动保存；点击可立即保存并回读核验（${modifier}S）。` : ""}`;
   const backupLabel = !status?.sync.enabled ? "未配置备份" : status.sync.busy ? "正在推送" : status.sync.error ? "备份失败" : status.sync.dirty ? "待推送" : "已推送";
 
   return <div className="app">
@@ -467,7 +468,7 @@ export function App() {
         <UpdateBadge state={updater.state} error={updater.error} open={() => openModal("updates")}
           perform={updater.perform} disabled={busy || closeState !== null} />
         <button className={`backup-status ${status?.sync.error ? "has-error" : ""}`} onClick={() => openModal("settings")} disabled={!status || busy} title="本机保存与 Git 备份是不同状态。点击配置或查看备份。">{status?.sync.busy ? <LoaderCircle size={13} className="spinning" /> : <Cloud size={13} />}<span>{backupLabel}</span></button>
-        {status?.state === "open" && <Button className="lock-button" onClick={() => void lock()} disabled={busy} title="锁定密库（Ctrl L）"><LockKeyhole size={13} /></Button>}
+        {status?.state === "open" && <Button className="lock-button" onClick={() => void lock()} disabled={busy} title={`锁定密库（${modifier}L）`}><LockKeyhole size={13} /></Button>}
         <div className="window-controls"><button aria-label="最小化窗口" title="最小化" disabled={!isDesktop} onClick={() => void run(() => windowAction("window.minimize"))}><Minus size={13} /></button><button aria-label={windowInfo.maximized ? "还原窗口" : "最大化窗口"} title={windowInfo.maximized ? "还原" : "最大化"} disabled={!isDesktop} onClick={() => void run(() => windowAction("window.maximize"))}>{windowInfo.maximized ? <Copy size={12} /> : <Square size={12} />}</button><button className="window-close" aria-label="关闭 Keyloom" title="关闭" onClick={closeApplication}><X size={15} /></button></div>
       </div>
     </header>
@@ -496,10 +497,10 @@ export function App() {
         <div className="vault-location"><FolderOpen size={16} /><span title={status?.path}>{status?.path || (isDesktop ? "正在连接本机加密服务…" : "请从桌面程序启动")}</span></div>
         <Button className="choose-vault" disabled={busy} onClick={() => void run(async () => { const data = await request({ method: "choose" }); if (data !== null) { if (!isStatus(data)) throw new Error("路径响应无效"); setStatus(data); setUnlockPassword(""); setPasswordConfirm(""); } })}><FolderOpen size={16} />选择已有密库 / 新建位置</Button>
         <p className="unlock-boundary"><ShieldCheck size={15} />元密码仅用于本机解密，不会上传或写入磁盘。</p>
-      </div><span className="unlock-version">Keyloom DESKTOP <span>0.1.3</span></span></section>
+      </div><span className="unlock-version">Keyloom DESKTOP <span>0.1.4</span></span></section>
     </div> : <div className="workspace">
       <aside className="sidebar">
-        <Button className="new-record" onClick={() => openModal("new")} disabled={busy}><Plus size={18} />新增记录<span>Ctrl N</span></Button>
+        <Button className="new-record" onClick={() => openModal("new")} disabled={busy}><Plus size={18} />新增记录<span>{modifier}N</span></Button>
         <nav aria-label="记录筛选">
           <button className={filter === "all" ? "nav-item active" : "nav-item"} onClick={() => setFilter("all")}><Layers size={18} />全部记录<span>{records.length}</span></button>
           <button className={filter === "favorites" ? "nav-item active" : "nav-item"} onClick={() => setFilter("favorites")}><Star size={18} />我的收藏<span>{records.filter((item) => item.tags.includes("收藏")).length}</span></button>
@@ -519,7 +520,7 @@ export function App() {
         <div className="columns">
           <section className="record-list-pane" aria-label="记录列表">
             <div className="list-heading"><h1>{filterTitle}<span>{filtered.length}</span></h1><Button className="icon-button" title="刷新记录列表" onClick={() => void run(refreshRecords)}><RefreshCw size={15} /></Button></div>
-            <div className="search-input"><Search size={17} /><input ref={search} aria-label="搜索记录" placeholder="搜索名称、分类或标签" value={query} onChange={(event) => setQuery(event.target.value)} /><kbd>Ctrl K</kbd></div>
+            <div className="search-input"><Search size={17} /><input ref={search} aria-label="搜索记录" placeholder="搜索名称、分类或标签" value={query} onChange={(event) => setQuery(event.target.value)} /><kbd>{modifier}K</kbd></div>
             <div className="list-controls"><span>{query ? `${filtered.length} 条结果` : "名称 / 分类"}</span><label><SlidersHorizontal size={12} /><select aria-label="记录排序" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">最近修改</option><option value="title">名称排序</option></select></label></div>
             <div className="record-list">
               {filtered.map((item) => <button key={item.id} className={`record-card ${item.id === record?.id ? "selected" : ""}`} onClick={() => selectRecord(item.id)} disabled={busy}>
@@ -542,7 +543,7 @@ export function App() {
                 <Button title="复制记录与附件" onClick={() => void run(async () => { const saved = await save(); if (!saved?.id) throw new Error("请先保存记录"); adopt(await request({ method: "record.duplicate", id: saved.id })); await refreshRecords(); })}><Copy size={14} />复制</Button>
                 <Button title="删除记录" onClick={() => openModal("delete")}><Trash2 size={14} /></Button>
                 <Button title="重新加载此记录（将放弃未保存修改）" onClick={() => void run(async () => { if (!record.id) throw new Error("请先保存记录"); if (JSON.stringify(draft.current) !== baseline.current && !window.confirm("重新加载会放弃尚未保存的修改，是否继续？")) return; adopt(await request({ method: "record.get", id: record.id })); })}><RefreshCw size={13} /></Button>
-                <button type="button" className={`save-indicator save-${saveState}`} data-save-state={saveState} aria-label="立即保存并核验" title={saveHint} disabled={busy || saveState === "saving"} onClick={() => void run(async () => { await saveAndVerify(); })}>{saveState === "saving" ? <LoaderCircle size={13} className="spinning" /> : saveState === "saved" ? <CheckCheck size={13} /> : saveState === "error" ? <AlertCircle size={13} /> : <Check size={13} />}<span aria-live="polite">{saveLabel}</span><kbd>Ctrl S</kbd></button>
+                <button type="button" className={`save-indicator save-${saveState}`} data-save-state={saveState} aria-label="立即保存并核验" title={saveHint} disabled={busy || saveState === "saving"} onClick={() => void run(async () => { await saveAndVerify(); })}>{saveState === "saving" ? <LoaderCircle size={13} className="spinning" /> : saveState === "saved" ? <CheckCheck size={13} /> : saveState === "error" ? <AlertCircle size={13} /> : <Check size={13} />}<span aria-live="polite">{saveLabel}</span><kbd>{modifier}S</kbd></button>
               </div>
               {recordStale && <div className="record-change-warning" role="status"><AlertCircle size={13} /><span>此记录已由 CLI 更新。请用工具栏的重新加载按钮查看新内容；不会覆盖你尚未保存的本机修改。</span></div>}
               <div className="detail-scroll">
@@ -571,7 +572,7 @@ export function App() {
                 <div className="notes-section"><div className="section-heading"><h2>备注</h2></div><textarea aria-label="备注" value={record.notes} onChange={(event) => edit({ notes: event.target.value })} placeholder="备注" rows={3} /></div>
                 <div className="record-timestamps"><span>创建于 {record.created_at ? new Date(record.created_at).toLocaleDateString("zh-CN") : "尚未保存"}</span><span>修改于 {record.updated_at ? new Date(record.updated_at).toLocaleString("zh-CN", { hour12: false }) : "尚未保存"}</span></div>
               </div>
-              <footer className="editor-footer"><div><ShieldCheck size={13} /><span>AES-256-GCM</span><i /><span>{record.fields.length} 字段 · {attachmentCount} 附件</span></div><kbd>Ctrl S 立即保存并核验 · Ctrl K 搜索 · Ctrl L 锁定</kbd></footer>
+              <footer className="editor-footer"><div><ShieldCheck size={13} /><span>AES-256-GCM</span><i /><span>{record.fields.length} 字段 · {attachmentCount} 附件</span></div><kbd>{modifier}S 立即保存并核验 · {modifier}K 搜索 · {modifier}L 锁定</kbd></footer>
             </fieldset> : <div className="detail-empty"><p>选择一条记录，或新增记录。</p><Button onClick={() => openModal("new")}><Plus size={15} />新增记录</Button></div>}
           </section>
         </div>
@@ -636,7 +637,7 @@ export function App() {
         <div className="settings-action"><div><strong>Secret Key 恢复文件</strong><small>请与密库分开保管，不要上传到备份或源码仓库</small></div><Button disabled={status?.state !== "open"} onClick={() => void run(async () => { const data = await request({ method: "recovery.export" }); if (data !== null) setNotice("恢复文件已导出并回读验证"); })}>导出恢复文件<ArrowDownToLine size={15} /></Button></div>
         <div className="settings-action"><div><strong>轮换 Secret Key</strong><small>重新加密全部数据，原恢复文件将失效</small></div><Button disabled={status?.state !== "open"} onClick={() => openModal("rotate")}>开始轮换<ArrowRight size={15} /></Button></div>
         <div className="settings-action"><div><strong>临时解密附件</strong><small>请先关闭外部查看程序，再执行清理</small></div><Button onClick={() => void run(async () => { const data = await request({ method: "previews.clear" }); if (!isStatus(data)) throw new Error("清理响应无效"); setStatus(data); setNotice(data.pendingPreviews ? "有文件被占用，请关闭后重试" : "临时附件已清理"); })}>清理临时文件</Button></div>
-        <p className="settings-footnote"><ShieldCheck size={15} />DPI：{windowInfo.dpiAwareness} · WebView {window.devicePixelRatio}×。兼容既有 v2 密库与 Windows DPAPI；不要同时在其他程序中编辑同一条记录。</p>
+        <p className="settings-footnote"><ShieldCheck size={15} />DPI：{windowInfo.dpiAwareness} · WebView {window.devicePixelRatio}×。兼容既有 v2 密库；设备密钥保存在系统安全存储中。不要同时在其他程序中编辑同一条记录。</p>
       </div>}
       {(modal === "password" || modal === "rotate") && <form onSubmit={(event) => { event.preventDefault(); void run(async () => { await save(); if (modal === "password") { if (newPassword !== passwordConfirm) throw new Error("两次输入的新元密码不一致"); await request({ method: "password.change", current: currentPassword, password: newPassword }); setNotice("元密码已更换"); } else { const result = await request({ method: "key.rotate", password: currentPassword }); if (result === null) return; setNotice("Secret Key 已轮换，请妥善保管新恢复文件"); } setCurrentPassword(""); setNewPassword(""); setPasswordConfirm(""); setModal(null); }); }}><p className="muted">{modal === "rotate" ? "将生成新的 Secret Key、重新加密全部数据，并要求你选择新的恢复文件位置。请先做好备份。" : "建议使用 16 位以上随机密码。忘记元密码将无法恢复数据。"}</p><label className="form-label">当前元密码<input className="input" type="password" autoComplete="off" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label>{modal === "password" && <><label className="form-label">新元密码<input className="input" type="password" minLength={10} autoComplete="off" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label><label className="form-label">再次输入新元密码<input className="input" type="password" autoComplete="off" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} required /></label></>}<div className="modal-footer"><Button type="submit" className="primary" disabled={busy}>{busy ? "正在处理…" : modal === "rotate" ? "选择恢复位置并轮换" : "确认更换"}</Button></div></form>}
       {modal === "delete" && <><p className="muted">确定删除“{record?.title}”及其全部加密附件？此操作无法撤销，也不会清除 Git 历史或旧备份中的副本。</p><div className="modal-footer"><Button onClick={() => setModal(null)}>取消</Button><Button className="danger-button" disabled={busy} onClick={() => void run(async () => { if (!record?.id) { clearSensitive(); await loadStatus(); return; } await request({ method: "record.delete", id: record.id }); epoch.current++; baseline.current = ""; draft.current = null; setRecord(null); setModal(null); await refreshRecords(); setNotice("记录及附件已删除"); })}><Trash2 size={15} />删除记录</Button></div></>}

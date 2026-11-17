@@ -6,6 +6,8 @@ A local encrypted vault with a compact Windows desktop, controlled CLI writes fo
 
 **Early Windows release.** MIT licensed, unsigned, and not independently audited. macOS/Linux desktop support and Secret Relay are not implemented in this release.
 
+**0.1.4 source candidate:** the GUI, CLI, encryption, attachments, backup and updater now run in TypeScript on one shared Bun runtime. Python/PyInstaller are not used to build or run this candidate. The native CI matrix targets Windows x64, macOS Apple Silicon/Intel and Ubuntu 24.04+ x64/ARM64; those additional platforms are not released until native validation passes. The latest published 0.1.3 remains Windows-only.
+
 [Releases](https://github.com/lubobill1990/keyloom/releases) · [中文说明](README.zh-CN.md) · [Agent installation](#installation-for-coding-agents) · [Security boundaries](docs/SECURITY.md)
 
 ## What it does
@@ -128,14 +130,12 @@ Git history retains old ciphertext. Rotating keys does not retroactively revoke 
 
 ## Development
 
-Windows, Git, Bun 1.3.11 and uv are required.
+Git and Bun 1.3.11 are required. Windows packaging also needs Visual Studio C++ Build Tools for a tiny argument/stdio launcher; macOS/Linux use a shell launcher. Neither launcher implements encryption or bundles another runtime.
 
 ```powershell
 bun install --frozen-lockfile
-uv sync --project backend --group build --locked
 bun run typecheck
-bun test src\shared
-uv run --project backend python -m unittest discover -s backend -p "test_*.py" -q
+bun run test
 bun run build
 bun run start
 ```
@@ -144,7 +144,11 @@ bun run start
 
 Desktop shortcuts: `Ctrl+K` / `Ctrl+F` search, `Ctrl+S` save and verify, `Ctrl+L` lock, and `Ctrl+N` create. A capture-phase handler intercepts browser download shortcuts such as `Ctrl+J` before focused controls can swallow the event. Other browser-only shortcuts are also prevented when WebView2 delivers them to the page; host-level accelerators, notably F5/F12, can bypass page handlers and are not guaranteed disabled. Normal typing, copy/paste, undo/redo and word-navigation shortcuts remain available.
 
-The v2 encryption core is shared by the GUI and CLI. Its existing format namespaces and Windows device-key location are retained for compatibility. Secrets are not stored in browser localStorage or application logs. CLI IPC uses authenticated AES-GCM envelopes over IPv4 loopback, a DPAPI-protected transport key, freshness/replay checks and a restricted write-only method surface.
+The native TypeScript v2 encryption core is shared by the GUI and CLI. It uses Bun's `node:crypto` implementation of scrypt, HKDF-SHA256, AES-256-GCM and Ed25519, not custom cryptographic algorithms. Existing encrypted records, attachments, recovery files and Windows DPAPI device keys retain their formats/locations. macOS uses Keychain; Linux requires Secret Service/libsecret, with no plaintext fallback. Python sources under `backend/` and `tests/reference/` are retained only as an independent development oracle; normal tests, builds and release signing do not invoke them.
+
+If a previous Python release has an interrupted migration/key-rotation transaction, finish recovery with 0.1.3 first. The new implementation refuses to overwrite an unrecognized old transaction journal. Secrets are not stored in browser localStorage or application logs. CLI IPC uses authenticated AES-GCM envelopes over IPv4 loopback, OS-protected transport keys, freshness/replay checks and a restricted write-only method surface. Linux needs GTK/WebKitGTK, X11/XWayland, Secret Service, zenity and system Git. Initial macOS builds are unsigned/not notarized; use normal OS approval, never disable Gatekeeper.
+
+Optional independent interop check: `bun tests/reference/roundtrip.ts` uses uv/Python **only as a development oracle**, verifies that Python opens JS-written vaults/attachments after password changes and rotation, and that JS reads Python-written updates. It is not part of normal builds or CI.
 
 ## Automatic updates
 
@@ -158,6 +162,6 @@ Vaults, recovery files, settings, WebView data and ciphertext mirrors are not pr
 
 **Bootstrap:** versions up to 0.1.2 have no updater. Install 0.1.3 or later manually once; existing v2 vaults remain compatible. For portable upgrades, use a fresh program directory, or rename the old program directory and extract at its previous location. Do not overlay old archives: stale assets deliberately fail the inventory check. Never remove your separate vault/recovery folders. Development builds do not check automatically or install updates.
 
-Release maintainers: `scripts/update-release.py init-key --backup <outside-repository.dpapi> --repository lubobill1990/keyloom` creates a Windows-DPAPI-protected local backup and pipes the independent key into `KEYLOOM_UPDATE_SIGNING_KEY` in GitHub Actions. Only its public half belongs in source. Key rotation must be deliberate; the command refuses a backup that differs from the pinned public key. Update archives and unsigned build metadata are produced by `scripts/release-assets.ps1`; releases are not published until signing verifies against the pinned key.
+Release maintainers: retain the existing independent signing key and its encrypted backup; do not generate a replacement during the TypeScript migration. `bun run release:assets` creates native update archives and unsigned metadata. The separate signing job invokes `scripts/update-release.ts`, verifies all five platform archives, and accepts only `KEYLOOM_UPDATE_SIGNING_KEY` matching the pinned public key. No Python or separate crypto executable is involved.
 
-CI checks source-publication boundaries, strict TypeScript, unit/integration tests and Windows packaging. Pushing a matching `v*` tag automatically publishes GitHub release assets and checksums. Windows Authenticode signing is not configured; signed update manifests use the independent Ed25519 key described above.
+CI checks source-publication boundaries, strict TypeScript, unit/integration tests and five native packages, including a real UI/backend health handshake and write-only CLI exercise. A matching `v*` tag publishes only after all platform jobs and feed signing pass. Windows Authenticode signing is not configured; signed update manifests use the independent Ed25519 key described above.

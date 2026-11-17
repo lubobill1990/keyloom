@@ -7,7 +7,7 @@ license: MIT
 # Keyloom
 
 The CLI command for this profile is `{{KEYLOOM_CLI}}`.
-On Windows, run these examples in PowerShell. Use that command in place of `keyloom` in the examples if it is not on PATH.
+On Windows, run these examples in PowerShell; on macOS/Linux, use a POSIX shell. Use that command in place of `keyloom` in the examples if it is not on PATH. `keyloom doctor --native` checks the system keyring and native file picker without reading vault data.
 
 - The user unlocks Keyloom and enables **CLI writes for this unlock session** in its UI. If access is locked or denied, stop and ask the user to unlock/approve in Keyloom. Never ask for a master password in chat.
 - Discover the supported interface with `keyloom --help` and `keyloom item --help`. Use `keyloom status --json` and `keyloom item list --json` for metadata.

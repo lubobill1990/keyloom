@@ -16,5 +16,5 @@
     "types": ["bun", "vite/client"],
     "rootDir": "."
   },
-  "include": ["src", "electrobun.config.ts", "vite.config.ts"]
+  "include": ["src", "scripts/**/*.ts", "electrobun.config.ts", "vite.config.ts"]
 }

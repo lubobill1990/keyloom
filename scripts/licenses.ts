@@ -6,6 +6,8 @@ await mkdir(destination, { recursive: true });
 for (const [module, filename] of [
   ["react", "LICENSE"], ["react-dom", "LICENSE"], ["lucide-react", "LICENSE"],
   ["three", "LICENSE"], ["@babylonjs/core", "license.md"],
+  ["yauzl", "LICENSE"], ["yazl", "LICENSE"], ["pend", "LICENSE"],
+  ["buffer-crc32", "LICENSE"],
 ]) {
   await copyFile(resolve("node_modules", module, filename), resolve(destination, `${module.replaceAll("/", "-")}.txt`));
 }

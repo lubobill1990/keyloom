@@ -58,7 +58,7 @@ export function UpdateBadge({ state, error, open, perform, disabled }: {
       {working ? <LoaderCircle size={12} className="spinning" /> : failed ? <AlertCircle size={12} /> : (ready || outcome) ? <Download size={12} /> : null}
       <span>{ready ? `v${state.available} · 更新就绪` : state?.phase === "downloading"
         ? `下载更新 ${state.total ? Math.floor(state.downloaded / state.total * 100) : 0}%`
-        : state?.phase === "installing" ? "准备重启…" : failed ? "更新需处理" : outcome ? "更新完成" : `v${state?.current || "0.1.3"}`}</span>
+        : state?.phase === "installing" ? "准备重启…" : failed ? "更新需处理" : outcome ? "更新完成" : `v${state?.current || "0.1.4"}`}</span>
     </button>
     {(ready || outcome) && <button type="button" disabled={disabled} className="update-dismiss" aria-label={ready ? "跳过此版本" : "关闭更新结果"}
       onClick={() => void perform({ method: ready ? "update.skip" : "update.ack" })}><X size={11} /></button>}
@@ -77,7 +77,7 @@ export function UpdatePanel({ state, error, perform, restart, openRelease }: {
     installing: "正在交给独立更新程序", error: "更新未完成",
   }[state.phase] : "正在读取更新状态…";
   return <div className="update-content">
-    <dl className="update-details"><dt>当前版本</dt><dd>Keyloom {state?.current || "0.1.3"}</dd>
+    <dl className="update-details"><dt>当前版本</dt><dd>Keyloom {state?.current || "0.1.4"}</dd>
       <dt>更新状态</dt><dd role="status">{label}{state?.available && ` · v${state.available}`}</dd></dl>
     {state?.phase === "downloading" && <div className="update-progress"><progress aria-label="更新下载进度" value={state.downloaded} max={state.total || 1} />
       <span>{(state.downloaded / 1024 / 1024).toFixed(1)} / {state.total ? (state.total / 1024 / 1024).toFixed(1) : "?"} MB</span></div>}

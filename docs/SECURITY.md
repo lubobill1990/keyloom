@@ -5,8 +5,8 @@ Keyloom is an early release, not an independently audited security product.
 ## What is protected
 
 - Existing v2 authenticated encryption and key wrapping are retained. The master password is not persisted; the portable recovery secret is kept separate from ciphertext.
-- Windows device-key copies use DPAPI CurrentUser. The application cannot protect against malware already running as the same Windows user or an attacker reading an unlocked process's memory.
-- Native API transport and CLI IPC are local. CLI IPC binds to `127.0.0.1`, requires authenticated AES-GCM envelopes using a DPAPI-protected transport key, rejects browser Origins/incorrect Hosts, and checks nonce replay and freshness.
+- Windows device-key copies use DPAPI CurrentUser; macOS/Linux source candidates use Bun's Keychain/Secret Service integration without plaintext fallback. The application cannot protect against malware already running as the same user or an attacker reading an unlocked process's memory.
+- Native API transport and CLI IPC are local. CLI IPC binds to `127.0.0.1`, requires authenticated AES-GCM envelopes using an OS-protected transport key, rejects browser Origins/incorrect Hosts/paths, and checks nonce replay and freshness.
 - Agent methods do not include arbitrary record reads, recovery export, changing permissions or invoking native dialogs. User-approved writes return receipts, never field values.
 - Concurrent desktop writes use the encrypted record file's revision, not second-resolution timestamps, to avoid overwriting newer CLI changes.
 - Local writes use the existing core's transaction locks and atomic persistence. Clicking the saved-state control performs an actual record read-back.

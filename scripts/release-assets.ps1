@@ -1,24 +1,6 @@
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $PSScriptRoot
-$version = (Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).version
-$artifacts = Join-Path $root 'artifacts'
-$sources = @(
-    @('stable-win-x64-Keyloom-Setup.zip', "keyloom-$version-windows-x64-setup.zip"),
-    @('stable-win-x64-Keyloom.tar.zst', "keyloom-$version-windows-x64.tar.zst")
-)
-$hashes = @()
-foreach ($pair in $sources) {
-    $target = Join-Path $artifacts $pair[1]
-    Copy-Item -LiteralPath (Join-Path $artifacts $pair[0]) -Destination $target -Force
-    if ((Get-Item -LiteralPath $target).Length -lt 1000000) { throw 'Release artifact is unexpectedly small.' }
-    $digest = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
-    $hashes += "$digest  $($pair[1])"
-}
-& uv run --project backend python (Join-Path $PSScriptRoot 'update-release.py') package `
-    --root (Join-Path $root 'build\portable-win-x64\Keyloom') --output $artifacts --version $version
-if ($LASTEXITCODE -ne 0) { throw 'Safe update archive packaging failed.' }
-$updateName = "keyloom-$version-windows-x64-update.zip"
-$updateDigest = (Get-FileHash -LiteralPath (Join-Path $artifacts $updateName) -Algorithm SHA256).Hash.ToLowerInvariant()
-$hashes += "$updateDigest  $updateName"
-[IO.File]::WriteAllLines((Join-Path $artifacts 'SHA256SUMS.txt'), $hashes, [Text.UTF8Encoding]::new($false))
-Write-Output "Prepared Keyloom $version release assets and SHA256SUMS.txt"
+Push-Location (Split-Path -Parent $PSScriptRoot)
+try {
+    & bun scripts/release-assets.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Release asset packaging failed.' }
+} finally { Pop-Location }

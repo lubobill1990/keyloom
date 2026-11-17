@@ -4,10 +4,9 @@ import type { ClientRequest, CloseState, ServiceRequest, VaultRecord, VaultRPC, 
 import { isObject, isRecord, isStatus, isSyncStatus, isUpdateState } from "../shared/model";
 import { ServiceBridge, result } from "./service";
 import { CloseCoordinator } from "./close-coordinator";
+import { desktopStateDirectory, desktopWindowFrame } from "../shared/desktop-platform";
 
-const local = process.env.KEYLOOM_STATE_DIR
-  || (process.env.LOCALAPPDATA ? resolve(process.env.LOCALAPPDATA, "Keyloom") : null);
-if (!local) throw new Error("Cannot locate the Windows application data directory.");
+const local = desktopStateDirectory(process.env);
 const updatePlans = resolve(local, "updates", "plans");
 const service = new ServiceBridge(PATHS.RESOURCES_FOLDER, local);
 let pendingDraft: VaultRecord | null = null;
@@ -239,21 +238,15 @@ const rpc = BrowserView.defineRPC<VaultRPC>({
 });
 
 function createWindow() {
-  if (process.env.KEYLOOM_DPI_AWARENESS !== "per-monitor-v2") {
+  if (process.platform === "win32" && process.env.KEYLOOM_DPI_AWARENESS !== "per-monitor-v2") {
     throw new Error("Start Keyloom through its built launcher so Per-Monitor V2 is enabled before the UI thread.");
   }
   const display = Screen.getPrimaryDisplay();
-  const scale = display.scaleFactor;
-  if (!Number.isFinite(scale) || scale <= 0) throw new Error("Invalid monitor DPI scale.");
-  const frame = {
-    x: display.workArea.x + Math.round(24 * scale),
-    y: display.workArea.y + Math.round(24 * scale),
-    width: Math.min(Math.round(1300 * scale), display.workArea.width - Math.round(48 * scale)),
-    height: Math.min(Math.round(850 * scale), display.workArea.height - Math.round(48 * scale)),
-  };
+  const frame = desktopWindowFrame(display);
   const created = new BrowserWindow({
     title: "Keyloom", url: "views://mainview/index.html", frame, rpc,
-    titleBarStyle: "hiddenInset", navigationRules: JSON.stringify(["views://mainview/*"]),
+    titleBarStyle: process.platform === "win32" ? "hiddenInset" : "hidden",
+    navigationRules: JSON.stringify(["views://mainview/*"]),
   });
   let resizeTimer: ReturnType<typeof setTimeout> | undefined;
   created.on("resize", () => {
@@ -267,7 +260,7 @@ let window = createWindow();
 function windowState(): WindowState {
   return {
     maximized: window.isMaximized(), scaleFactor: Screen.getPrimaryDisplay().scaleFactor,
-    dpiAwareness: process.env.KEYLOOM_DPI_AWARENESS || "unknown",
+    dpiAwareness: process.platform === "win32" ? process.env.KEYLOOM_DPI_AWARENESS || "unknown" : "native",
   };
 }
 function reportError(error: unknown) {
@@ -375,6 +368,6 @@ Electrobun.events.on("before-quit", (event: ElectrobunEvent<object, { allow: boo
   if (allowQuit) return;
   event.response = { allow: false };
   // The SDK emits this after Alt+F4 already destroyed the last native window.
-  window = createWindow();
+  if (!BrowserWindow.getById(window.id)) window = createWindow();
   void requestClose().catch(reportError);
 });
