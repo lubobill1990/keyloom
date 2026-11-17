@@ -1,3 +1,54 @@
+diff --git a/dist/api/bun/core/BrowserWindow.ts b/dist/api/bun/core/BrowserWindow.ts
+--- a/dist/api/bun/core/BrowserWindow.ts
++++ b/dist/api/bun/core/BrowserWindow.ts
+@@ -1,7 +1,7 @@
+ import { ffi } from "../proc/native";
+ import electrobunEventEmitter from "../events/eventEmitter";
+ import { BrowserView } from "./BrowserView";
+-import { type Pointer } from "bun:ffi";
++import { dlopen, ptr, type Pointer } from "bun:ffi";
+ import { BuildConfig } from "./BuildConfig";
+ import { quit } from "./Utils";
+ import { type RPCWithTransport } from "../../shared/rpc.js";
+@@ -225,6 +225,24 @@
+ 
+ 		BrowserWindowMap[this.id] = this;
+ 
++		const viewFrame = { x: 0, y: 0, width: this.frame.width, height: this.frame.height };
++		if (process.platform === "win32") {
++			// The outer frame includes borders; its first WM_SIZE precedes WebView creation.
++			const user32 = dlopen("user32.dll", {
++				GetClientRect: { args: ["ptr", "ptr"], returns: "bool" },
++			});
++			try {
++				const rect = new Int32Array(4);
++				if (!user32.symbols.GetClientRect(this.ptr, ptr(rect))) {
++					throw new Error("Cannot read the window client area.");
++				}
++				viewFrame.width = rect[2]! - rect[0]!;
++				viewFrame.height = rect[3]! - rect[1]!;
++			} finally {
++				user32.close();
++			}
++		}
++
+ 		// todo (yoav): user should be able to override this and pass in their
+ 		// own webview instance, or instances for attaching to the window.
+ 		const webview = new BrowserView({
+@@ -237,12 +255,7 @@
+ 			viewsRoot: this.viewsRoot,
+ 			// frame: this.frame,
+ 			renderer: this.renderer,
+-			frame: {
+-				x: 0,
+-				y: 0,
+-				width: this.frame.width,
+-				height: this.frame.height,
+-			},
++			frame: viewFrame,
+ 			rpc,
+ 			// todo: we need to send the window here and attach it in one go
+ 			// then the view creation code in objc can toggle between offscreen
 diff --git a/dist/api/bun/core/Socket.ts b/dist/api/bun/core/Socket.ts
 --- a/dist/api/bun/core/Socket.ts
 +++ b/dist/api/bun/core/Socket.ts

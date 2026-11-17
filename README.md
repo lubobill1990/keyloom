@@ -27,7 +27,7 @@ A local encrypted vault with a compact Windows desktop, controlled CLI writes fo
 
    ```powershell
    New-Item -ItemType Directory -Path "$env:LOCALAPPDATA\Programs\Keyloom" -Force
-   tar -xf .\keyloom-0.1.1-windows-x64.tar.zst -C "$env:LOCALAPPDATA\Programs\Keyloom"
+   tar -xf .\keyloom-0.1.2-windows-x64.tar.zst -C "$env:LOCALAPPDATA\Programs\Keyloom"
    & "$env:LOCALAPPDATA\Programs\Keyloom\Keyloom\bin\launcher.exe"
    ```
 
@@ -140,7 +140,9 @@ bun run build
 bun run start
 ```
 
-`bun run build:release` creates an installer and an extracted portable app. `scripts/post-build.ts` inserts the DPI bootstrap into the Electrobun launcher **before** its native event loop starts; applying a CSS zoom is not the DPI fix.
+`bun run build:release` creates an installer and an extracted portable app. `scripts/post-build.ts` inserts the DPI bootstrap into the Electrobun launcher **before** its native event loop starts; applying a CSS zoom is not the DPI fix. The pinned SDK patch also sizes the initial Windows WebView from `GetClientRect`, not the outer window frame; a user resize must not be required to expose the rightmost controls. Packaging fails if that patch is missing from the compiled application. If a stale local SDK cache triggers this check, remove only `node_modules/electrobun` and reinstall with `bun install --frozen-lockfile`.
+
+Desktop shortcuts: `Ctrl+K` / `Ctrl+F` search, `Ctrl+S` save and verify, `Ctrl+L` lock, and `Ctrl+N` create. A capture-phase handler intercepts browser download shortcuts such as `Ctrl+J` before focused controls can swallow the event. Other browser-only shortcuts are also prevented when WebView2 delivers them to the page; host-level accelerators, notably F5/F12, can bypass page handlers and are not guaranteed disabled. Normal typing, copy/paste, undo/redo and word-navigation shortcuts remain available.
 
 The v2 encryption core is shared by the GUI and CLI. Its existing format namespaces and Windows device-key location are retained for compatibility. Secrets are not stored in browser localStorage or application logs. CLI IPC uses authenticated AES-GCM envelopes over IPv4 loopback, a DPAPI-protected transport key, freshness/replay checks and a restricted write-only method surface.
 

@@ -10,6 +10,7 @@ import {
 import type { ClientRequest, CloseState, RecordSummary, SyncConfiguration, SyncStatus, VaultRecord, VaultStatus, WindowState } from "../shared/types";
 import { draftSaveState, filterRecords, formatSize, generatePassword, isCloseState, isObject, isRecord, isStatus, isSummary, isSyncStatus, isWindowState, templates } from "../shared/model";
 import { call, isDesktop, onCloseRequest, onLock, onRecordChanged, onVaultStatus, onWindowState } from "./api";
+import { shortcutAction } from "../shared/shortcuts";
 import brandIcon from "../../assets/brand/icon.png";
 
 function message(error: unknown) { return error instanceof Error ? error.message : "操作失败，请重试"; }
@@ -265,14 +266,16 @@ export function App() {
   }, [status?.state, request]);
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.key.toLowerCase() === "k") { event.preventDefault(); search.current?.focus(); }
-      if (event.key.toLowerCase() === "s") { event.preventDefault(); void saveAction.current().catch((error: unknown) => setError(message(error))); }
-      if (event.key.toLowerCase() === "l") { event.preventDefault(); void lockAction.current(); }
-      if (event.key.toLowerCase() === "n") { event.preventDefault(); newAction.current(); }
+      const action = shortcutAction(event);
+      if (!action) return;
+      event.preventDefault();
+      if (action === "search") search.current?.focus();
+      if (action === "save") void saveAction.current().catch((error: unknown) => setError(message(error)));
+      if (action === "lock") void lockAction.current();
+      if (action === "new") newAction.current();
     };
-    window.addEventListener("keydown", shortcut);
-    return () => window.removeEventListener("keydown", shortcut);
+    window.addEventListener("keydown", shortcut, true);
+    return () => window.removeEventListener("keydown", shortcut, true);
   }, []);
   useEffect(() => {
     if (!notice) return;
@@ -481,7 +484,7 @@ export function App() {
         <div className="vault-location"><FolderOpen size={16} /><span title={status?.path}>{status?.path || (isDesktop ? "正在连接本机加密服务…" : "请从桌面程序启动")}</span></div>
         <Button className="choose-vault" disabled={busy} onClick={() => void run(async () => { const data = await request({ method: "choose" }); if (data !== null) { if (!isStatus(data)) throw new Error("路径响应无效"); setStatus(data); setUnlockPassword(""); setPasswordConfirm(""); } })}><FolderOpen size={16} />选择已有密库 / 新建位置</Button>
         <p className="unlock-boundary"><ShieldCheck size={15} />元密码仅用于本机解密，不会上传或写入磁盘。</p>
-      </div><span className="unlock-version">Keyloom DESKTOP <span>0.1.1</span></span></section>
+      </div><span className="unlock-version">Keyloom DESKTOP <span>0.1.2</span></span></section>
     </div> : <div className="workspace">
       <aside className="sidebar">
         <Button className="new-record" onClick={() => openModal("new")} disabled={busy}><Plus size={18} />新增记录<span>Ctrl N</span></Button>
@@ -495,7 +498,7 @@ export function App() {
         <div className="sidebar-bottom">
           <button className="nav-item" onClick={() => openModal("generator")}><WandSparkles size={18} />密码生成器</button>
           <button className="nav-item" onClick={() => openModal("settings")}><Settings2 size={18} />密库与安全设置</button>
-          <div className="sidebar-meta">本地密库 · v0.1.1</div>
+          <div className="sidebar-meta">本地密库 · v0.1.2</div>
         </div>
       </aside>
       <main className="main-workspace">

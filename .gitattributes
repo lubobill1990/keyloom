@@ -1,2 +1,2 @@
-# Unified diff context lines intentionally contain a space before source tabs.
-patches/*.patch whitespace=-space-before-tab
+# Unified diff context uses a prefix space, including before tabs and on blank lines.
+patches/*.patch whitespace=-space-before-tab,-blank-at-eol

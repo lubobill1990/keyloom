@@ -10,7 +10,7 @@ from keyloom_errors import KeyloomError
 from keyloom_ipc import IPCBroker, IPCClient, default_state_directory
 
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 EXIT_CODES = {"usage": 2, "invalid_request": 2, "locked": 3, "unavailable": 3, "denied": 4,
               "conflict": 5, "sync_conflict": 5}
 

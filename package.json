@@ -1,6 +1,6 @@
 {
   "name": "keyloom-desktop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "license": "MIT",
   "description": "A local encrypted vault with controlled agent writes and ciphertext-only Git backups.",
