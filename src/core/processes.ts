@@ -1,13 +1,18 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { dlopen, ptr } from "bun:ffi";
 import { readFileSync, readlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import { object, parseJsonStrict, VaultError } from "./strict";
 
 export type ProcessIdentity = { pid: number; executable: string; started: string; parent: number };
+function procLibrary() {
+  return dlopen("/usr/lib/libproc.dylib", { proc_pidpath: { args: ["i32", "ptr", "u32"], returns: "i32" } });
+}
+let macApi: ReturnType<typeof procLibrary> | undefined;
 function validPid(pid: number) { if (!Number.isInteger(pid) || pid <= 0) throw new VaultError("进程 PID 无效"); }
 async function output(command: string, args: string[], input?: unknown, allowed = [0]): Promise<string> {
   return new Promise((accept, reject) => {
-    const child = spawn(command, args, { windowsHide: true, env: { ...process.env, LC_ALL: "C" }, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(command, args, { windowsHide: true, env: { ...process.env, LC_ALL: "C", TZ: "UTC" }, stdio: ["pipe", "pipe", "pipe"] });
     let data = "";
     child.stdout.on("data", bytes => { data += bytes.toString("utf8"); });
     child.stderr.resume(); child.stdin.end(input === undefined ? "" : JSON.stringify(input));
@@ -35,10 +40,18 @@ export async function identity(pid: number): Promise<ProcessIdentity | null> {
       throw new VaultError("无法确认进程身份", "unavailable");
     }
   }
-  const raw = await output("/bin/ps", ["-ww", "-p", String(pid), "-o", "lstart=", "-o", "comm="], undefined, [0, 1]);
+  const raw = await output("/bin/ps", ["-ww", "-p", String(pid), "-o", "lstart="], undefined, [0, 1]);
   if (!raw) return null;
+  const buffer = Buffer.alloc(4096);
+  macApi ||= procLibrary();
+  if (macApi.symbols.proc_pidpath(pid, ptr(buffer), buffer.length) <= 0) {
+    if (!(await output("/bin/ps", ["-p", String(pid), "-o", "pid="], undefined, [0, 1]))) return null;
+    throw new VaultError("无法核验 macOS 进程的可执行文件路径", "unavailable");
+  }
+  const end = buffer.indexOf(0);
+  if (end < 1) throw new VaultError("macOS 进程路径无效", "unavailable");
   const parent = Number(await output("/bin/ps", ["-p", String(pid), "-o", "ppid="], undefined, [0, 1]));
-  return { pid, parent, started: raw.slice(0, 24), executable: raw.slice(24).trim() };
+  return { pid, parent, started: raw, executable: buffer.toString("utf8", 0, end) };
 }
 export function samePath(left: string, right: string) { return process.platform === "win32" ? resolve(left).toLowerCase() === resolve(right).toLowerCase() : resolve(left) === resolve(right); }
 export async function alive(expected: ProcessIdentity) {
