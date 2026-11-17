@@ -10,6 +10,7 @@ import {
 import type { ClientRequest, CloseState, RecordSummary, SyncConfiguration, SyncStatus, VaultRecord, VaultStatus, WindowState } from "../shared/types";
 import { filterRecords, formatSize, generatePassword, isCloseState, isObject, isRecord, isStatus, isSummary, isSyncStatus, isWindowState, templates } from "../shared/model";
 import { call, isDesktop, onCloseRequest, onLock, onRecordChanged, onVaultStatus, onWindowState } from "./api";
+import brandIcon from "../../assets/brand/icon.png";
 
 function message(error: unknown) { return error instanceof Error ? error.message : "操作失败，请重试"; }
 function clone<T>(value: T): T { return structuredClone(value); }
@@ -27,7 +28,7 @@ function Button({ children, onClick, className = "", disabled = false, title, ty
 }
 function Brand({ compact = false }: { compact?: boolean }) {
   return <div className={`brand ${compact ? "compact" : ""}`}>
-    <span className="brand-mark"><LockKeyhole size={23} strokeWidth={1.6} /></span>
+    <span className="brand-mark"><img src={brandIcon} alt="" aria-hidden="true" draggable={false} /></span>
     {!compact && <div><strong>Keyloom</strong><small>KEYLOOM</small></div>}
   </div>;
 }

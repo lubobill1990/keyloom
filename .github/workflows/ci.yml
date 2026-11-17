@@ -31,7 +31,9 @@ jobs:
           bun install --frozen-lockfile
           uv sync --project backend --group build --locked
       - name: Guard public source
-        run: uv run --project backend python scripts\check-publication.py
+        run: |
+          uv run --project backend python scripts\check-publication.py
+          uv run --project backend python scripts\brand-assets.py --check
       - name: Type-check and frontend state-machine tests
         run: |
           bun run typecheck

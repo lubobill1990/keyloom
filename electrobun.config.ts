@@ -17,7 +17,7 @@ export default {
       "backend/dist/keyloom": "backend",
     },
     watchIgnore: ["dist/**", "backend/**"],
-    win: { bundleCEF: false },
+    win: { bundleCEF: false, icon: "assets/brand/icon.ico" },
     mac: { bundleCEF: false },
     linux: { bundleCEF: false },
   },

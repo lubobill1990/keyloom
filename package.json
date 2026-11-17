@@ -2,6 +2,12 @@
   "name": "keyloom-desktop",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "description": "A local encrypted vault with controlled agent writes and ciphertext-only Git backups.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lubobill1990/keyloom.git"
+  },
   "type": "module",
   "scripts": {
     "typecheck:sdk": "tsc --ignoreConfig --declaration --emitDeclarationOnly --noCheck --moduleResolution bundler --module esnext --target esnext --skipLibCheck --types bun --rootDir node_modules/electrobun/dist/api --outDir .sdk-types node_modules/electrobun/dist/api/bun/core/BrowserWindow.ts node_modules/electrobun/dist/api/bun/core/Utils.ts node_modules/electrobun/dist/api/bun/core/Paths.ts node_modules/electrobun/dist/api/bun/ElectrobunConfig.ts node_modules/electrobun/dist/api/browser/index.ts",

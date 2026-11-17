@@ -32,6 +32,7 @@ kbd { font-family: "Consolas", monospace; font-size: 10px; font-weight: 400; col
 .small-note { font-size: 11px; color: #7d8894; line-height: 1.7; }
 .brand { display: flex; align-items: center; gap: 7px; color: #253b52; }
 .brand-mark { width: 25px; height: 28px; display: grid; place-items: center; color: #476d92; }
+.brand-mark img { width: 22px; height: 22px; border-radius: 3px; display: block; }
 .brand strong { font-size: 15px; font-weight: 600; letter-spacing: 1px; }
 .brand small { display: none; }
 .app-titlebar { height: 32px; min-height: 32px; display: flex; align-items: center; background: #f5f7fa; border-bottom: 1px solid #d5dde6; user-select: none; flex-shrink: 0; }
@@ -39,6 +40,7 @@ kbd { font-family: "Consolas", monospace; font-size: 10px; font-weight: 400; col
 .titlebar-brand .brand { gap: 5px; }
 .titlebar-brand .brand-mark { width: 20px; height: 24px; }
 .titlebar-brand .brand-mark svg { width: 17px; height: 17px; }
+.titlebar-brand .brand-mark img { width: 19px; height: 19px; }
 .titlebar-brand .brand strong { font-size: 12px; letter-spacing: .5px; }
 .titlebar-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: #8d9ba9; padding: 7px 10px; height: 100%; }
 .titlebar-actions { display: flex; align-items: center; height: 100%; flex-shrink: 0; gap: 4px; }

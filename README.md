@@ -1,5 +1,7 @@
 # Keyloom
 
+![Keyloom — local encrypted vault, controlled agent writes and Git backups](assets/brand/readme-banner.png)
+
 A local encrypted vault with a compact Windows desktop, controlled CLI writes for coding agents, and ciphertext-only Git backups.
 
 **Early Windows release.** MIT licensed, unsigned, and not independently audited. macOS/Linux desktop support and Secret Relay are not implemented in this release.
@@ -70,7 +72,7 @@ Ask before installing/updating user-level agent configuration. The command insta
 
 Use `--agent copilot`, `--agent claude`, or `--agent codex` for selected hosts. Existing different skills are not overwritten unless `--overwrite` is explicitly supplied; a backup is retained. Restart the agent session after installation.
 
-The desktop settings page also offers one-click skill installation. The installed skill records the local executable path, so PATH changes are not required.
+The desktop settings page also offers one-click skill installation. The installed skill records the local executable path and profile, so PATH changes are not required. Reinstall/update the skill after moving a portable installation.
 
 ### Agent write workflow
 

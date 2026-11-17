@@ -6,6 +6,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Cannot locate Python redistribution license.' }
     & uv run --project backend --group build pyinstaller `
         --noconfirm --clean --onedir --name keyloom `
+        --icon (Join-Path $appRoot 'assets\brand\icon.ico') `
         --distpath 'backend\dist' `
         --add-data ($pythonLicense + ';licenses') `
         --add-data ((Join-Path $appRoot 'assets\skills') + ';skills') `

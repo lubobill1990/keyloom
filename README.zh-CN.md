@@ -1,5 +1,7 @@
 # Keyloom
 
+![Keyloom](assets/brand/readme-banner.png)
+
 面向人和编程 Agent 的本地加密密库。Windows 首发，MIT 开源。
 
 > 当前是未做独立安全审计、未签名的早期版本。请先使用测试数据验证自己的备份和恢复流程。
