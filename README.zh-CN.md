@@ -2,11 +2,11 @@
 
 ![Keyloom](assets/brand/readme-banner.png)
 
-面向人和编程 Agent 的本地加密密库。Windows 首发，MIT 开源。
+面向人和编程 Agent 的本地加密密库。支持 Windows、macOS 和 Linux，MIT 开源。
 
 > 当前是未做独立安全审计、未签名的早期版本。请先使用测试数据验证自己的备份和恢复流程。
 
-**0.1.4 源码候选版**已将 GUI、CLI、加解密、附件、Git 备份和更新器改为 TypeScript，共用已有 Bun 运行时。构建和运行均不再依赖 Python/PyInstaller，也不再打包第二份 CLI 运行时。最新已发布的 0.1.3 仍是旧 Windows 版本；新增 macOS Apple Silicon/Intel、Ubuntu 24.04+ x64/ARM64 正在通过原生 CI 验证，未验证通过前不发布。
+**从 0.1.4 起**，GUI、CLI、加解密、附件、Git 备份和更新器均改为 TypeScript，共用已有 Bun 运行时。构建和运行不再依赖 Python/PyInstaller，也不打包第二份 CLI 运行时。覆盖 Windows x64、macOS Apple Silicon/Intel、Ubuntu 24.04+ x64/ARM64；五个平台都须通过真实界面启动、系统密钥存储和 CLI 写入验证才能发布。0.1.3 及以前仍是旧 Windows 版本。
 
 沿用现有 scrypt、HKDF-SHA256、AES-256-GCM 加密格式和恢复文件，Windows 继续读取原 DPAPI 设备密钥；macOS 使用钥匙串，Linux 使用 Secret Service，不会降级为明文密钥文件。旧版若存在未完成的迁移或换密钥事务，需先用 0.1.3 恢复；新版会明确阻止覆盖旧事务。
 
@@ -25,7 +25,9 @@
 
 见 [英文 README 的可执行安装流程](README.md#installation-for-coding-agents) 和 [Releases](https://github.com/lubobill1990/keyloom/releases)。
 
-安装包 ZIP 内的安装器、压缩数据和元数据必须放在一起。portable 归档解压后运行 `Keyloom/bin/launcher.exe`；CLI 位于 `Keyloom/Resources/app/backend/keyloom.exe`。无须另装 Python、Bun、uv，但需要 Windows WebView2 Runtime。
+Windows 安装包 ZIP 内的安装器、压缩数据和元数据必须放在一起。portable 归档解压后运行 `Keyloom/bin/launcher.exe`；CLI 位于 `Keyloom/bin/keyloom.exe`，旧版 backend 路径保留兼容启动器。无须另装 Python、Bun、uv，但需要 Windows WebView2 Runtime。
+
+macOS 选择 Apple Silicon 的 `macos-arm64` 或 Intel 的 `macos-x64`，从 DMG 将应用复制到 Applications，使用系统正常许可流程打开，不要关闭 Gatekeeper；需要已解锁的钥匙串。Linux 选择对应 x64/ARM64 归档，需 GTK 3、WebKitGTK 4.1、X11/XWayland、Secret Service/libsecret、zenity 和系统 Git。各平台具体路径和安装方式见 [安装指南](README.md#macos-and-linux-installation)。
 
 创建密库时必须将恢复文件保存在密库之外，另行离线保管。密库、恢复文件、元密码三者不是互相替代的备份。
 

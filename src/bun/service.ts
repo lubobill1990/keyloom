@@ -5,7 +5,7 @@ import { createRuntime } from "../core/runtime";
 import { layout, rootFromResources } from "../core/platform";
 
 export class ServiceBridge {
-  private core;
+  private core: ReturnType<typeof createRuntime> | null = null;
   private ready: Promise<void>;
   private failure: Error | null = null;
   private stopped = false;
@@ -15,15 +15,17 @@ export class ServiceBridge {
   onUpdateChanged: (state: UpdateState) => void = () => {};
 
   constructor(resources: string, state: string) {
-    this.core = createRuntime({ resources, state, data: process.env.KEYLOOM_DEFAULT_DIR,
-      cliCommand: [resolve(rootFromResources(resources), layout().cli)],
-      notify: event => {
-        if (event.event === "locked" && typeof event.pendingPreviews === "number") this.onLocked(event.pendingPreviews);
-        else if (event.event === "recordChanged" && typeof event.itemId === "string") this.onRecordChanged(event.itemId);
-        else if (event.event === "updateChanged" && isUpdateState(event.state)) this.onUpdateChanged(event.state);
-        else if (event.event === "backendError" && typeof event.message === "string") this.onFailure(event.message);
-      } });
-    this.ready = this.core.start().catch(error => {
+    this.ready = Promise.resolve().then(async () => {
+      this.core = createRuntime({ resources, state, data: process.env.KEYLOOM_DEFAULT_DIR,
+        cliCommand: [resolve(rootFromResources(resources), layout().cli)],
+        notify: event => {
+          if (event.event === "locked" && typeof event.pendingPreviews === "number") this.onLocked(event.pendingPreviews);
+          else if (event.event === "recordChanged" && typeof event.itemId === "string") this.onRecordChanged(event.itemId);
+          else if (event.event === "updateChanged" && isUpdateState(event.state)) this.onUpdateChanged(event.state);
+          else if (event.event === "backendError" && typeof event.message === "string") this.onFailure(event.message);
+        } });
+      await this.core.start();
+    }).catch(error => {
       if (!(error instanceof Error)) throw error;
       this.failure = error; this.onFailure(error.message);
     });
@@ -32,6 +34,7 @@ export class ServiceBridge {
     await this.ready;
     if (this.failure) throw this.failure;
     if (this.stopped) throw new Error("密库服务已关闭");
+    if (!this.core) throw new Error("密库服务尚未初始化");
     return this.core.request(request);
   }
   async stop(timeout = 20_000) {
@@ -39,6 +42,7 @@ export class ServiceBridge {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const status = await this.request({ method: "lock" });
+      if (!this.core) throw new Error("密库服务尚未初始化");
       await Promise.race([this.core.stop(), new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("密库服务尚未完成关闭，请稍候重试。")), timeout);
       })]);
@@ -46,7 +50,7 @@ export class ServiceBridge {
       return status;
     } finally { clearTimeout(timer); }
   }
-  forceStop() { this.stopped = true; this.core.forceStop(); }
+  forceStop() { this.stopped = true; this.core?.forceStop(); }
 }
 
 export async function result(operation: () => Promise<unknown>): Promise<AppResponse> {

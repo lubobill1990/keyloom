@@ -2,11 +2,11 @@
 
 ![Keyloom — local encrypted vault, controlled agent writes and Git backups](assets/brand/readme-banner.png)
 
-A local encrypted vault with a compact Windows desktop, controlled CLI writes for coding agents, and ciphertext-only Git backups.
+A local encrypted vault with a compact desktop, controlled CLI writes for coding agents, and ciphertext-only Git backups.
 
-**Early Windows release.** MIT licensed, unsigned, and not independently audited. macOS/Linux desktop support and Secret Relay are not implemented in this release.
+**Early release.** MIT licensed, unsigned, and not independently audited. Secret Relay is not implemented.
 
-**0.1.4 source candidate:** the GUI, CLI, encryption, attachments, backup and updater now run in TypeScript on one shared Bun runtime. Python/PyInstaller are not used to build or run this candidate. The native CI matrix targets Windows x64, macOS Apple Silicon/Intel and Ubuntu 24.04+ x64/ARM64; those additional platforms are not released until native validation passes. The latest published 0.1.3 remains Windows-only.
+**From 0.1.4:** the GUI, CLI, encryption, attachments, backup and updater run in TypeScript on one shared Bun runtime. Python/PyInstaller are not used to build or run the application. Native CI validates Windows x64, macOS Apple Silicon/Intel and Ubuntu 24.04+ x64/ARM64; release publishing requires all five native builds and their UI/CLI smoke tests to pass. Versions through 0.1.3 were Windows-only.
 
 [Releases](https://github.com/lubobill1990/keyloom/releases) · [中文说明](README.zh-CN.md) · [Agent installation](#installation-for-coding-agents) · [Security boundaries](docs/SECURITY.md)
 
@@ -29,13 +29,28 @@ A local encrypted vault with a compact Windows desktop, controlled CLI writes fo
 
    ```powershell
    New-Item -ItemType Directory -Path "$env:LOCALAPPDATA\Programs\Keyloom" -Force
-   tar -xf .\keyloom-0.1.3-windows-x64.tar.zst -C "$env:LOCALAPPDATA\Programs\Keyloom"
+   tar -xf .\keyloom-0.1.4-windows-x64.tar.zst -C "$env:LOCALAPPDATA\Programs\Keyloom"
    & "$env:LOCALAPPDATA\Programs\Keyloom\Keyloom\bin\launcher.exe"
    ```
 
-Windows needs the WebView2 Runtime. Release artifacts include the Bun runtime and the packaged Python service; end users do not need to install Bun, Python or uv.
+Windows needs the WebView2 Runtime. Artifacts include one Bun runtime shared by the GUI and CLI; end users do not install Bun, Python or uv.
 
 Create a vault in an empty folder, or select an existing compatible v2 vault. Save the Secret Key recovery file separately from the vault, source repository and Git backup. Losing all authorized devices and recovery files, or forgetting the master password, makes recovery impossible.
+
+## macOS and Linux installation
+
+Choose `macos-arm64` for Apple Silicon, `macos-x64` for Intel, or the matching `linux-x64`/`linux-arm64` release. Verify `SHA256SUMS.txt` before extraction.
+
+- **macOS:** open the DMG and copy Keyloom to Applications, or extract its `.tar.zst` portable archive. Move it out of the disk image before enabling automatic installation. Initial builds are unsigned/not notarized: approve the app using normal macOS controls; do not disable Gatekeeper. The system keychain must be unlocked. CLI: `/Applications/Keyloom.app/Contents/MacOS/keyloom`.
+- **Linux:** Ubuntu 24.04+ with X11/XWayland, GTK 3, WebKitGTK 4.1, libsecret/Secret Service, zenity and system Git. Extract the matching setup or portable archive, then run `Keyloom/bin/launcher`. CLI: `Keyloom/bin/keyloom`. Other distributions need equivalent native dependencies; no compatibility is promised without testing.
+
+Both platforms use the same writable CLI and skill installer:
+
+```sh
+"/path/to/keyloom" agents install --all --json
+```
+
+Default state: `%LOCALAPPDATA%/Keyloom` on Windows, `~/Library/Application Support/Keyloom` on macOS, and `$XDG_DATA_HOME/keyloom` (default `~/.local/share/keyloom`) on Linux. `KEYLOOM_STATE_DIR` overrides it. State, vault data and program files must remain separate for safe updates.
 
 ## Installation for coding agents
 
@@ -60,7 +75,7 @@ $install = Join-Path $env:LOCALAPPDATA 'Programs\Keyloom'
 New-Item -ItemType Directory -Path $install -Force | Out-Null
 tar -xf $download -C $install
 if ($LASTEXITCODE -ne 0) { throw 'Extraction failed.' }
-$keyloom = Join-Path $install 'Keyloom\Resources\app\backend\keyloom.exe'
+$keyloom = Join-Path $install 'Keyloom\bin\keyloom.exe'
 & $keyloom agents install --all --json
 ```
 
@@ -152,9 +167,11 @@ Optional independent interop check: `bun tests/reference/roundtrip.ts` uses uv/P
 
 ## Automatic updates
 
-Starting with **0.1.3**, packaged Windows builds check this repository's GitHub Releases after 15 seconds and every six hours, and download a newer stable version in the background. Click the version in the title bar for status, a manual check, the automatic-check preference, the update log, or an available rollback. **Restart to update is always an explicit user action**; there is no timed restart.
+Starting with **0.1.3 on Windows**, and **0.1.4 on macOS/Linux**, packaged builds check this repository's GitHub Releases after 15 seconds and every six hours, and download a newer stable version in the background. Click the version in the title bar for status, a manual check, the automatic-check preference, the update log, or an available rollback. **Restart to update is always an explicit user action**; there is no timed restart.
 
 The fixed `releases/latest/download/latest.json` feed carries an Ed25519-signed manifest binding the repository URL, stable version, platform, filename, size and SHA-256 digest. The public key is pinned in the app. A separate read-only CI signing job receives the release key; the build job never does, and only the publisher has release-write permissions. Unsigned, modified, older and same-version network packages are rejected.
+
+Windows retains `latest.json` for existing clients. Other platforms use `latest-macos-arm64.json`, `latest-macos-x64.json`, `latest-linux-x64.json` and `latest-linux-arm64.json`, signed with the same pinned key. The old Windows backend executable path is retained as a tiny launcher so existing installed skills and the 0.1.3 updater can upgrade without Python in the new package.
 
 Restart uses the same local-save, temporary-file and Git-backup checks as normal exit. Cancelling leaves the app open; a failed save never starts installation, and an update cannot discard an unsaved draft. An external copy of the packaged CLI waits for **only this installation's desktop, service and launcher PIDs**, verifies the package again, safely extracts it, preserves the old application, and swaps the program directory. It confirms both the new UI and service report healthy; a failed start or health check restores and restarts the previous application.
 
