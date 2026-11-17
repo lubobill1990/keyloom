@@ -66,6 +66,26 @@ export type CloseState = {
   error: string | null;
   sync: SyncStatus | null;
   pendingPreviews: number;
+  restart?: boolean;
+};
+
+export type UpdateState = {
+  current: string;
+  phase: "idle" | "checking" | "up-to-date" | "downloading" | "ready" | "installing" | "error";
+  available: string | null;
+  downloaded: number;
+  total: number | null;
+  error: string | null;
+  autoCheck: boolean;
+  skippedVersion: string | null;
+  canInstall: boolean;
+  rollback: string | null;
+  outcome: {
+    phase: string; from: string; to: string;
+    result: "ok" | "rolled-back" | "failed" | null;
+    message: string; acknowledged: boolean;
+  } | null;
+  logAvailable: boolean;
 };
 
 export type WindowState = {
@@ -85,6 +105,11 @@ export type VaultStatus = {
 };
 
 export type ServiceRequest =
+  | { method: "update.status" | "update.skip" | "update.ack" | "update.log" }
+  | { method: "update.check"; manual: boolean }
+  | { method: "update.configure"; autoCheck: boolean }
+  | { method: "update.healthy"; appPid: number }
+  | { method: "update.prepare"; mode: "apply" | "rollback"; appPid: number; launcherPid: number }
   | { method: "sync.pause" | "sync.resume" }
   | { method: "sync.status" | "sync.start" | "sync.check" }
   | { method: "sync.configure"; settings: SyncConfiguration }
@@ -108,7 +133,8 @@ export type ServiceRequest =
   | { method: "settings"; autoLockMinutes: number };
 
 export type ClientRequest =
-  | Exclude<ServiceRequest, { method: "sync.pause" | "sync.resume" | "dialog" | "select" | "attachment.add" | "attachment.export" | "attachment.preview" | "recovery.export" | "create" | "migrate" | "key.rotate" | "unlock" }>
+  | Exclude<ServiceRequest, { method: "update.check" | "update.healthy" | "update.prepare" | "sync.pause" | "sync.resume" | "dialog" | "select" | "attachment.add" | "attachment.export" | "attachment.preview" | "recovery.export" | "create" | "migrate" | "key.rotate" | "unlock" }>
+  | { method: "update.check" | "update.install" | "update.rollback" }
   | { method: "choose" }
   | { method: "unlock"; password: string; needsRecovery: boolean }
   | { method: "create" | "migrate"; password: string }
@@ -141,6 +167,8 @@ export type VaultRPC = {
       closeRequested: CloseState;
       windowState: WindowState;
       recordChanged: { itemId: string };
+      updateChanged: UpdateState;
+      updateFailure: { message: string };
     };
   };
 };

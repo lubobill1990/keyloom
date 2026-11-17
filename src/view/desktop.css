@@ -47,6 +47,20 @@ kbd { font-family: "Consolas", monospace; font-size: 10px; font-weight: 400; col
 .backup-status { display: flex; align-items: center; gap: 5px; border: 0; background: transparent; padding: 4px 8px; color: #8295a7; font-size: 10px; height: 25px; border-radius: 3px; }
 .backup-status:hover { background: #e6edf5; }
 .backup-status.has-error { color: #a45b54; }
+.update-badge { display: flex; align-items: center; color: var(--accent); height: 25px; border-radius: 3px; }
+.update-badge > button { display: flex; align-items: center; gap: 4px; background: transparent; border: 0; padding: 4px 6px; height: 25px; font-size: 10px; color: inherit; }
+.update-badge > button:hover { background: var(--selection); }
+.update-badge > button > span { max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.update-badge.has-error { color: #a45b54; }
+.update-badge .update-dismiss { padding: 4px 2px; }
+.update-content { margin-top: 12px; }
+.update-details { display: grid; grid-template-columns: 76px 1fr; gap: 9px; margin: 0 0 16px; }
+.update-details dt { color: var(--muted); }
+.update-details dd { margin: 0; }
+.update-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 13px; }
+.update-progress { display: flex; gap: 10px; align-items: center; margin: 12px 0; }
+.update-progress progress { flex: 1; min-width: 0; height: 7px; accent-color: var(--accent); }
+.update-progress span { font: 10px "Consolas", monospace; color: var(--muted); }
 .titlebar-actions .button.lock-button { background: transparent; border-color: transparent; min-height: 24px; padding: 3px 6px; }
 .window-controls { display: flex; align-self: stretch; margin-left: 4px; gap: 0; }
 .window-controls > button { border: 0; background: transparent; color: #566d83; width: 44px; display: grid; place-items: center; border-radius: 0; padding: 0; }

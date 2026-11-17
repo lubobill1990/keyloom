@@ -14,5 +14,11 @@ foreach ($pair in $sources) {
     $digest = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
     $hashes += "$digest  $($pair[1])"
 }
+& uv run --project backend python (Join-Path $PSScriptRoot 'update-release.py') package `
+    --root (Join-Path $root 'build\portable-win-x64\Keyloom') --output $artifacts --version $version
+if ($LASTEXITCODE -ne 0) { throw 'Safe update archive packaging failed.' }
+$updateName = "keyloom-$version-windows-x64-update.zip"
+$updateDigest = (Get-FileHash -LiteralPath (Join-Path $artifacts $updateName) -Algorithm SHA256).Hash.ToLowerInvariant()
+$hashes += "$updateDigest  $updateName"
 [IO.File]::WriteAllLines((Join-Path $artifacts 'SHA256SUMS.txt'), $hashes, [Text.UTF8Encoding]::new($false))
 Write-Output "Prepared Keyloom $version release assets and SHA256SUMS.txt"

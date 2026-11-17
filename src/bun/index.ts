@@ -1,13 +1,14 @@
 import Electrobun, { BrowserWindow, BrowserView, PATHS, Screen, Utils, type ElectrobunEvent } from "electrobun/bun";
-import { resolve } from "node:path";
+import { resolve, dirname, basename } from "node:path";
 import type { ClientRequest, CloseState, ServiceRequest, VaultRecord, VaultRPC, VaultStatus, WindowState } from "../shared/types";
-import { isObject, isRecord, isStatus, isSyncStatus } from "../shared/model";
+import { isObject, isRecord, isStatus, isSyncStatus, isUpdateState } from "../shared/model";
 import { ServiceBridge, result } from "./service";
 import { CloseCoordinator } from "./close-coordinator";
 
 const local = process.env.KEYLOOM_STATE_DIR
   || (process.env.LOCALAPPDATA ? resolve(process.env.LOCALAPPDATA, "Keyloom") : null);
 if (!local) throw new Error("Cannot locate the Windows application data directory.");
+const updatePlans = resolve(local, "updates", "plans");
 const service = new ServiceBridge(PATHS.RESOURCES_FOLDER, local);
 let pendingDraft: VaultRecord | null = null;
 let clipboard: string | null = null;
@@ -18,6 +19,11 @@ let revision = 0;
 let sensitiveEpoch = 0;
 let allowQuit = false;
 let closeState: CloseState | null = null;
+let pendingRestart: "apply" | "rollback" | null = null;
+let uiHealthy = false;
+let updatePolling = false;
+let updateTimer: ReturnType<typeof setTimeout> | undefined;
+let updateInterval: ReturnType<typeof setInterval> | undefined;
 
 function clearClipboard() {
   if (clipboardTimer) clearTimeout(clipboardTimer);
@@ -84,7 +90,32 @@ async function persistDraft() {
 
 async function dispatch(request: ClientRequest): Promise<unknown> {
   switch (request.method) {
-    case "app.state": return { window: windowState(), close: closeState };
+    case "app.state": return { window: windowState(), close: closeState ? { ...closeState, restart: pendingRestart !== null } : null };
+    case "update.status":
+      updatePolling = true;
+      return service.request(request);
+    case "update.check":
+      return service.request({ method: "update.check", manual: true });
+    case "update.install":
+    case "update.rollback": {
+      if (closeState || pendingRestart) throw new Error("Finish or cancel the current close request first.");
+      const state = await service.request({ method: "update.status" });
+      if (!isUpdateState(state) || !state.canInstall) throw new Error("Automatic installation is available in packaged stable builds only.");
+      if (request.method === "update.install" && state.phase !== "ready") throw new Error("Download and verify the update first.");
+      if (request.method === "update.rollback" && !state.rollback) throw new Error("There is no previous version to restore.");
+      pendingRestart = request.method === "update.install" ? "apply" : "rollback";
+      void requestClose().catch(reportError);
+      return { requested: true };
+    }
+    case "update.configure":
+    case "update.skip":
+    case "update.ack":
+      return service.request(request);
+    case "update.log": {
+      const path = await service.request(request);
+      if (typeof path !== "string" || !Utils.openPath(path)) throw new Error("The system could not open the update log.");
+      return { opened: true };
+    }
     case "window.minimize": window.minimize(); return windowState();
     case "window.maximize":
       if (window.isMaximized()) window.unmaximize(); else window.maximize();
@@ -170,7 +201,19 @@ async function dispatch(request: ClientRequest): Promise<unknown> {
     case "sync.configure":
       return session(request);
     case "status": {
-      return readCurrentStatus();
+      const status = await readCurrentStatus();
+      if (!uiHealthy) {
+        await service.request({ method: "update.healthy", appPid: process.pid });
+        delete process.env.KEYLOOM_UPDATE_HEALTH;
+        delete process.env.KEYLOOM_UPDATE_NONCE;
+        uiHealthy = true;
+        const autoCheck = () => {
+          if (!closeState && !allowQuit) void service.request({ method: "update.check", manual: false }).catch(updateFailure);
+        };
+        updateTimer = setTimeout(autoCheck, 15_000);
+        updateInterval = setInterval(autoCheck, 6 * 60 * 60 * 1000);
+      }
+      return status;
     }
     case "records":
     case "record.duplicate":
@@ -237,9 +280,17 @@ service.onLocked = (pendingPreviews) => {
   rpc.send.locked({ pendingPreviews });
 };
 service.onRecordChanged = (itemId) => rpc.send.recordChanged({ itemId });
+service.onUpdateChanged = (state) => rpc.send.updateChanged(state);
+
+function updateFailure(error: unknown) {
+  if (!(error instanceof Error)) throw error;
+  console.error(`Keyloom updater: ${error.name}`);
+  rpc.send.updateFailure({ message: error.message });
+}
 
 let polling = false;
 const heartbeat = setInterval(async () => {
+  if (!uiHealthy && process.env.KEYLOOM_UPDATE_HEALTH) return;
   if (polling) return;
   polling = true;
   const currentRevision = revision;
@@ -254,31 +305,55 @@ const heartbeat = setInterval(async () => {
     }
     wasOpen = data.state === "open";
     rpc.send.vaultStatus(data);
+    if (updatePolling && !closeState) {
+      try {
+        const update = await service.request({ method: "update.status" });
+        if (!isUpdateState(update)) throw new Error("Invalid updater state.");
+        rpc.send.updateChanged(update);
+      } catch (error) { updateFailure(error); }
+    }
   } catch (error) {
-    if (!allowQuit) reportError(error);
+    if (!allowQuit && !closeState) reportError(error);
   } finally { polling = false; }
 }, 2_000);
 
 function publishClose() {
-  if (closeState) rpc.send.closeRequested(closeState);
+  if (closeState) rpc.send.closeRequested({ ...closeState, restart: pendingRestart !== null });
 }
 
 async function finishClose(discard = false) {
+  if (discard && pendingRestart) throw new Error("Cancel the update before discarding unsaved changes.");
   if (!discard) await persistDraft(); else pendingDraft = null;
   if (!discard) {
     const backup = await service.request({ method: "sync.status" });
     if (!isSyncStatus(backup)) throw new Error("Unknown backup state; exit was not confirmed.");
     if (backup.busy) throw new Error("A Git operation is running. Wait for it to finish or cancel automatic exit.");
   }
-  clearInterval(heartbeat);
   clearClipboard();
-  if (discard) {
-    try { await service.stop(5_000); }
-    catch (error) {
-      console.error(`Keyloom: explicit discard required forced service shutdown (${error instanceof Error ? error.name : "unknown"}).`);
-      service.forceStop();
+  let cancelUpdate: string | null = null;
+  if (pendingRestart) {
+    const prepared = await service.request({ method: "update.prepare", mode: pendingRestart, appPid: process.pid, launcherPid: process.ppid });
+    if (!isObject(prepared) || prepared.prepared !== true || typeof prepared.cancelPath !== "string"
+      || basename(prepared.cancelPath) !== "cancel" || dirname(dirname(prepared.cancelPath)).toLowerCase() !== updatePlans.toLowerCase()) {
+      throw new Error("The update helper did not provide a valid handover.");
     }
-  } else await service.stop();
+    cancelUpdate = prepared.cancelPath;
+  }
+  try {
+    if (discard) {
+      try { await service.stop(5_000); }
+      catch (error) {
+        console.error(`Keyloom: explicit discard required forced service shutdown (${error instanceof Error ? error.name : "unknown"}).`);
+        service.forceStop();
+      }
+    } else await service.stop();
+  } catch (error) {
+    if (cancelUpdate) await Bun.write(cancelUpdate, "cancelled");
+    throw error;
+  }
+  clearInterval(heartbeat);
+  if (updateTimer) clearTimeout(updateTimer);
+  if (updateInterval) clearInterval(updateInterval);
   allowQuit = true;
   Utils.quit();
 }
@@ -290,7 +365,11 @@ const closeCoordinator = new CloseCoordinator({
   snapshot: () => lastStatus?.sync || null,
 });
 const requestClose = () => closeCoordinator.request();
-const respondToClose = (choice: "sync" | "local" | "cancel" | "discard") => closeCoordinator.respond(choice);
+async function respondToClose(choice: "sync" | "local" | "cancel" | "discard") {
+  const response = await closeCoordinator.respond(choice);
+  if (choice === "cancel") pendingRestart = null;
+  return response;
+}
 
 Electrobun.events.on("before-quit", (event: ElectrobunEvent<object, { allow: boolean }>) => {
   if (allowQuit) return;

@@ -50,4 +50,5 @@ jobs:
           path: |
             artifacts/keyloom-*-windows-x64*
             artifacts/SHA256SUMS.txt
+            artifacts/latest.unsigned.json
           if-no-files-found: error

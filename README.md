@@ -27,7 +27,7 @@ A local encrypted vault with a compact Windows desktop, controlled CLI writes fo
 
    ```powershell
    New-Item -ItemType Directory -Path "$env:LOCALAPPDATA\Programs\Keyloom" -Force
-   tar -xf .\keyloom-0.1.2-windows-x64.tar.zst -C "$env:LOCALAPPDATA\Programs\Keyloom"
+   tar -xf .\keyloom-0.1.3-windows-x64.tar.zst -C "$env:LOCALAPPDATA\Programs\Keyloom"
    & "$env:LOCALAPPDATA\Programs\Keyloom\Keyloom\bin\launcher.exe"
    ```
 
@@ -146,4 +146,18 @@ Desktop shortcuts: `Ctrl+K` / `Ctrl+F` search, `Ctrl+S` save and verify, `Ctrl+L
 
 The v2 encryption core is shared by the GUI and CLI. Its existing format namespaces and Windows device-key location are retained for compatibility. Secrets are not stored in browser localStorage or application logs. CLI IPC uses authenticated AES-GCM envelopes over IPv4 loopback, a DPAPI-protected transport key, freshness/replay checks and a restricted write-only method surface.
 
-CI checks source-publication boundaries, strict TypeScript, unit/integration tests and Windows packaging. Pushing a matching `v*` tag automatically publishes GitHub release assets and checksums; no signing certificate is currently configured.
+## Automatic updates
+
+Starting with **0.1.3**, packaged Windows builds check this repository's GitHub Releases after 15 seconds and every six hours, and download a newer stable version in the background. Click the version in the title bar for status, a manual check, the automatic-check preference, the update log, or an available rollback. **Restart to update is always an explicit user action**; there is no timed restart.
+
+The fixed `releases/latest/download/latest.json` feed carries an Ed25519-signed manifest binding the repository URL, stable version, platform, filename, size and SHA-256 digest. The public key is pinned in the app. A separate read-only CI signing job receives the release key; the build job never does, and only the publisher has release-write permissions. Unsigned, modified, older and same-version network packages are rejected.
+
+Restart uses the same local-save, temporary-file and Git-backup checks as normal exit. Cancelling leaves the app open; a failed save never starts installation, and an update cannot discard an unsaved draft. An external copy of the packaged CLI waits for **only this installation's desktop, service and launcher PIDs**, verifies the package again, safely extracts it, preserves the old application, and swaps the program directory. It confirms both the new UI and service report healthy; a failed start or health check restores and restarts the previous application.
+
+Vaults, recovery files, settings, WebView data and ciphertext mirrors are not program-update payloads. Updating refuses nested data/settings folders, links/junctions, unexpected program files and unsafe archive paths. Keep personal files outside the program directory. The latest known-good program backup is retained beside the install for explicit rollback. Update preferences, progress results and logs live under the application state's `updates` folder; a failed update is reported rather than silently marked successful. Local antivirus or filesystem restrictions are not bypassed; use the release page for a manual install if a helper cannot run.
+
+**Bootstrap:** versions up to 0.1.2 have no updater. Install 0.1.3 or later manually once; existing v2 vaults remain compatible. For portable upgrades, use a fresh program directory, or rename the old program directory and extract at its previous location. Do not overlay old archives: stale assets deliberately fail the inventory check. Never remove your separate vault/recovery folders. Development builds do not check automatically or install updates.
+
+Release maintainers: `scripts/update-release.py init-key --backup <outside-repository.dpapi> --repository lubobill1990/keyloom` creates a Windows-DPAPI-protected local backup and pipes the independent key into `KEYLOOM_UPDATE_SIGNING_KEY` in GitHub Actions. Only its public half belongs in source. Key rotation must be deliberate; the command refuses a backup that differs from the pinned public key. Update archives and unsigned build metadata are produced by `scripts/release-assets.ps1`; releases are not published until signing verifies against the pinned key.
+
+CI checks source-publication boundaries, strict TypeScript, unit/integration tests and Windows packaging. Pushing a matching `v*` tag automatically publishes GitHub release assets and checksums. Windows Authenticode signing is not configured; signed update manifests use the independent Ed25519 key described above.

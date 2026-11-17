@@ -10,7 +10,7 @@ from keyloom_errors import KeyloomError
 from keyloom_ipc import IPCBroker, IPCClient, default_state_directory
 
 
-VERSION = "0.1.2"
+from keyloom_version import VERSION
 EXIT_CODES = {"usage": 2, "invalid_request": 2, "locked": 3, "unavailable": 3, "denied": 4,
               "conflict": 5, "sync_conflict": 5}
 
@@ -142,6 +142,11 @@ def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "_update":
+        if len(argv) != 2:
+            raise KeyloomError("An updater plan path is required.", "usage")
+        from keyloom_update_worker import main as update
+        return update(argv[1])
     if argv and argv[0] == "serve":
         from vault_service import main as serve
         serve(argv[1:])

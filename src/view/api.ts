@@ -1,5 +1,5 @@
 import { Electroview } from "electrobun/view";
-import type { ClientRequest, CloseState, VaultRPC, VaultStatus, WindowState } from "../shared/types";
+import type { ClientRequest, CloseState, UpdateState, VaultRPC, VaultStatus, WindowState } from "../shared/types";
 
 type Listener = (message?: string) => void;
 const listeners = new Set<Listener>();
@@ -7,6 +7,8 @@ const statusListeners = new Set<(status: VaultStatus) => void>();
 const closeListeners = new Set<(state: CloseState) => void>();
 const windowListeners = new Set<(state: WindowState) => void>();
 const recordListeners = new Set<(itemId: string) => void>();
+const updateListeners = new Set<(state: UpdateState) => void>();
+const updateErrors = new Set<(message: string) => void>();
 const host = "__electrobun" in window
   ? new Electroview({
     rpc: Electroview.defineRPC<VaultRPC>({
@@ -20,6 +22,8 @@ const host = "__electrobun" in window
           closeRequested: (state: CloseState) => { for (const listener of closeListeners) listener(state); },
           windowState: (state: WindowState) => { for (const listener of windowListeners) listener(state); },
           recordChanged: ({ itemId }: { itemId: string }) => { for (const listener of recordListeners) listener(itemId); },
+          updateChanged: (state: UpdateState) => { for (const listener of updateListeners) listener(state); },
+          updateFailure: ({ message }: { message: string }) => { for (const listener of updateErrors) listener(message); },
         },
       },
     }),
@@ -54,4 +58,12 @@ export function onWindowState(listener: (state: WindowState) => void) {
 export function onRecordChanged(listener: (itemId: string) => void) {
   recordListeners.add(listener);
   return () => { recordListeners.delete(listener); };
+}
+export function onUpdateChanged(listener: (state: UpdateState) => void) {
+  updateListeners.add(listener);
+  return () => { updateListeners.delete(listener); };
+}
+export function onUpdateFailure(listener: (message: string) => void) {
+  updateErrors.add(listener);
+  return () => { updateErrors.delete(listener); };
 }

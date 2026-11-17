@@ -12,6 +12,7 @@ import { draftSaveState, filterRecords, formatSize, generatePassword, isCloseSta
 import { call, isDesktop, onCloseRequest, onLock, onRecordChanged, onVaultStatus, onWindowState } from "./api";
 import { shortcutAction } from "../shared/shortcuts";
 import brandIcon from "../../assets/brand/icon.png";
+import { UpdateBadge, UpdatePanel, useUpdater } from "./updates";
 
 function message(error: unknown) { return error instanceof Error ? error.message : "操作失败，请重试"; }
 function clone<T>(value: T): T { return structuredClone(value); }
@@ -40,7 +41,7 @@ function RecordIcon({ category }: { category: string }) {
   return <LockKeyhole size={21} />;
 }
 
-type Modal = "new" | "settings" | "password" | "rotate" | "delete" | "generator" | "attachment-open" | "close" | null;
+type Modal = "new" | "settings" | "updates" | "password" | "rotate" | "delete" | "generator" | "attachment-open" | "close" | null;
 type SaveState = "saved" | "dirty" | "saving" | "error";
 const demoSync: SyncStatus = { enabled: false, remote: "", branch: "main", intervalMinutes: 15, phase: "disabled", busy: false, dirty: false, error: null, errorCode: null, lastPushedAt: null, lastCommit: null };
 const demo = import.meta.env.DEV && new URLSearchParams(location.search).get("demo") === "1";
@@ -121,6 +122,7 @@ export function App() {
     }
     return call(request);
   }, []);
+  const updater = useUpdater(request, demo);
 
   const loadStatus = useCallback(async () => {
     const data = await request({ method: "status" });
@@ -138,7 +140,7 @@ export function App() {
     epoch.current++;
     draft.current = null;
     baseline.current = "";
-    setRecord(null); setTagText(""); setReveal(null); setModal((current) => current === "close" ? current : null);
+    setRecord(null); setTagText(""); setReveal(null); setModal((current) => current === "close" || current === "updates" ? current : null);
     setVerifiedAt(null);
     setRecordStale(false);
     setCurrentPassword(""); setNewPassword(""); setGenerated("");
@@ -417,6 +419,14 @@ export function App() {
     if (!isWindowState(data)) throw new Error("Invalid window controls response.");
     setWindowInfo(data);
   }
+  function restartForUpdate(mode: "apply" | "rollback") {
+    void run(async () => {
+      await save();
+      if (await updater.perform({ method: mode === "apply" ? "update.install" : "update.rollback" })) {
+        setModal((current) => current === "updates" ? null : current);
+      }
+    });
+  }
   function closeApplication() {
     if (demo) {
       setCloseState({ phase: "confirm", localError: null, error: null, sync: demoSync, pendingPreviews: 0 });
@@ -429,7 +439,7 @@ export function App() {
     void request({ method: "app.close.respond", choice }).then(() => {
       if (choice === "cancel") { setCloseState(null); setModal(null); }
     }).catch((error: unknown) => {
-      setCloseState((current) => current && ({ ...current, phase: "confirm", error: message(error) }));
+      setCloseState((current) => current && ({ ...current, error: message(error) }));
     });
   }
   async function startBackup() {
@@ -454,6 +464,8 @@ export function App() {
       <div className="titlebar-brand electrobun-webkit-app-region-drag" onDoubleClick={() => { if (isDesktop) void run(() => windowAction("window.maximize")); }}><Brand /></div>
       <div className="titlebar-path electrobun-webkit-app-region-drag" title={status?.path}>{status?.path || "本机加密密库"}</div>
       <div className="titlebar-actions electrobun-webkit-app-region-no-drag">
+        <UpdateBadge state={updater.state} error={updater.error} open={() => openModal("updates")}
+          perform={updater.perform} disabled={busy || closeState !== null} />
         <button className={`backup-status ${status?.sync.error ? "has-error" : ""}`} onClick={() => openModal("settings")} disabled={!status || busy} title="本机保存与 Git 备份是不同状态。点击配置或查看备份。">{status?.sync.busy ? <LoaderCircle size={13} className="spinning" /> : <Cloud size={13} />}<span>{backupLabel}</span></button>
         {status?.state === "open" && <Button className="lock-button" onClick={() => void lock()} disabled={busy} title="锁定密库（Ctrl L）"><LockKeyhole size={13} /></Button>}
         <div className="window-controls"><button aria-label="最小化窗口" title="最小化" disabled={!isDesktop} onClick={() => void run(() => windowAction("window.minimize"))}><Minus size={13} /></button><button aria-label={windowInfo.maximized ? "还原窗口" : "最大化窗口"} title={windowInfo.maximized ? "还原" : "最大化"} disabled={!isDesktop} onClick={() => void run(() => windowAction("window.maximize"))}>{windowInfo.maximized ? <Copy size={12} /> : <Square size={12} />}</button><button className="window-close" aria-label="关闭 Keyloom" title="关闭" onClick={closeApplication}><X size={15} /></button></div>
@@ -484,7 +496,7 @@ export function App() {
         <div className="vault-location"><FolderOpen size={16} /><span title={status?.path}>{status?.path || (isDesktop ? "正在连接本机加密服务…" : "请从桌面程序启动")}</span></div>
         <Button className="choose-vault" disabled={busy} onClick={() => void run(async () => { const data = await request({ method: "choose" }); if (data !== null) { if (!isStatus(data)) throw new Error("路径响应无效"); setStatus(data); setUnlockPassword(""); setPasswordConfirm(""); } })}><FolderOpen size={16} />选择已有密库 / 新建位置</Button>
         <p className="unlock-boundary"><ShieldCheck size={15} />元密码仅用于本机解密，不会上传或写入磁盘。</p>
-      </div><span className="unlock-version">Keyloom DESKTOP <span>0.1.2</span></span></section>
+      </div><span className="unlock-version">Keyloom DESKTOP <span>0.1.3</span></span></section>
     </div> : <div className="workspace">
       <aside className="sidebar">
         <Button className="new-record" onClick={() => openModal("new")} disabled={busy}><Plus size={18} />新增记录<span>Ctrl N</span></Button>
@@ -498,7 +510,7 @@ export function App() {
         <div className="sidebar-bottom">
           <button className="nav-item" onClick={() => openModal("generator")}><WandSparkles size={18} />密码生成器</button>
           <button className="nav-item" onClick={() => openModal("settings")}><Settings2 size={18} />密库与安全设置</button>
-          <div className="sidebar-meta">本地密库 · v0.1.2</div>
+          <div className="sidebar-meta">本地密库 · 加密保存在本机</div>
         </div>
       </aside>
       <main className="main-workspace">
@@ -568,20 +580,22 @@ export function App() {
     {status && status.state !== "open" && status.pendingPreviews > 0 && <div className="locked-preview-warning" role="alert"><AlertCircle size={15} /><span>临时明文附件尚未清理，请关闭外部查看程序后重试。</span><Button onClick={() => void run(async () => { const data = await request({ method: "previews.clear" }); if (!isStatus(data)) throw new Error("清理响应无效"); setStatus(data); })}>重新清理</Button></div>}
     {error && <div className="error-banner" role="alert"><AlertCircle size={18} /><span>{error}</span><button aria-label="关闭错误提示" onClick={() => setError("")}><X size={17} /></button></div>}
     {notice && <div className="toast" role="status"><CheckCheck size={17} />{notice}</div>}
-    {modal && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy && modal !== "close") setModal(null); }}><section role="dialog" aria-modal="true" aria-labelledby="modal-heading" className={`modal ${modal === "new" ? "template-modal" : modal === "settings" ? "settings-modal" : ""}`} onKeyDown={(event) => { if (event.key === "Escape" && !busy) { if (modal === "close") { if (closeState?.phase !== "preparing") closeChoice("cancel"); } else setModal(null); } }}><div className="modal-header"><h2 id="modal-heading">{{ new: "新增记录", settings: "密库设置", password: "更换元密码", rotate: "轮换 Secret Key", delete: "删除记录", generator: "密码生成器", "attachment-open": "使用系统默认应用打开", close: "退出 Keyloom" }[modal]}</h2><Button className="icon-button" title="关闭对话框" onClick={() => { if (modal === "close") closeChoice("cancel"); else setModal(null); }} disabled={busy || (modal === "close" && closeState?.phase === "preparing")}><X size={17} /></Button></div>
+    {modal && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy && modal !== "close") setModal(null); }}><section role="dialog" aria-modal="true" aria-labelledby="modal-heading" className={`modal ${modal === "new" ? "template-modal" : modal === "settings" ? "settings-modal" : ""}`} onKeyDown={(event) => { if (event.key === "Escape" && !busy) { if (modal === "close") { if (closeState?.phase !== "preparing") closeChoice("cancel"); } else setModal(null); } }}><div className="modal-header"><h2 id="modal-heading">{modal === "close" && closeState?.restart ? "保存并重启 Keyloom" : { new: "新增记录", settings: "密库设置", updates: "程序更新", password: "更换元密码", rotate: "轮换 Secret Key", delete: "删除记录", generator: "密码生成器", "attachment-open": "使用系统默认应用打开", close: "退出 Keyloom" }[modal]}</h2><Button className="icon-button" title="关闭对话框" onClick={() => { if (modal === "close") closeChoice("cancel"); else setModal(null); }} disabled={busy || (modal === "close" && closeState?.phase === "preparing")}><X size={17} /></Button></div>
+      {modal === "updates" && <UpdatePanel state={updater.state} error={updater.error} perform={updater.perform}
+        restart={restartForUpdate} openRelease={() => void run(async () => { await request({ method: "url.open", url: "https://github.com/lubobill1990/keyloom/releases/latest" }); })} />}
       {modal === "close" && closeState && <div className="close-content">
-        {closeState.phase === "preparing" ? <p className="close-progress"><LoaderCircle className="spinning" size={16} />正在保存并核对备份状态…</p> : <>
+        {closeState.phase === "preparing" ? <p className="close-progress"><LoaderCircle className="spinning" size={16} />{closeState.restart ? "正在保存、核对备份并准备更新程序…" : "正在保存并核对备份状态…"}</p> : <>
           {closeState.localError ? <p className="settings-warning" role="alert">本机保存未能确认：{closeState.localError}<br />强制退出可能保留临时明文文件，下次启动会尝试清理。</p> : <p className="close-local-status"><CheckCheck size={16} />本机已保存{closeState.sync?.enabled && closeState.sync.dirty ? "，远端尚未推送" : ""}。</p>}
           {closeState.pendingPreviews > 0 && <p className="settings-warning">有 {closeState.pendingPreviews} 组临时明文文件仍被外部程序占用。请关闭文件后清理；退出不会清除外部查看器的缓存。</p>}
           {closeState.error && <p className="settings-warning" role="alert">{closeState.error}</p>}
-          {closeState.phase === "syncing" && <p className="close-progress"><LoaderCircle className="spinning" size={16} />正在推送密文，确认远端接收成功后自动退出。</p>}
-          <p className="small-note">“本机已保存”不等于“远端已备份”。取消自动退出不会中断已经开始的 Git 操作；开始关闭时，CLI 写入授权会被撤销。</p>
+          {closeState.phase === "syncing" && <p className="close-progress"><LoaderCircle className="spinning" size={16} />正在推送密文，确认远端接收成功后{closeState.restart ? "重启" : "退出"}。</p>}
+          <p className="small-note">“本机已保存”不等于“远端已备份”。取消自动{closeState.restart ? "重启" : "退出"}不会中断已经开始的 Git 操作；开始关闭时，CLI 写入授权会被撤销。</p>
         </>}
         <div className="modal-footer">
-          <Button onClick={() => closeChoice("cancel")} disabled={closeState.phase === "preparing"}>{closeState.phase === "syncing" ? "取消自动退出" : "返回编辑"}</Button>
-          {closeState.localError ? <Button className="danger-button" onClick={() => closeChoice("discard")} disabled={closeState.phase === "preparing" || closeState.sync?.busy}>放弃未保存修改并退出</Button> : <>
-            <Button onClick={() => closeChoice("local")} disabled={closeState.phase !== "confirm" || closeState.sync?.busy}>仅保存本机并退出</Button>
-            {closeState.sync?.enabled && (closeState.sync.dirty || closeState.sync.busy || closeState.sync.error) && <Button className="primary" onClick={() => closeChoice("sync")} disabled={closeState.phase !== "confirm"}><CloudUpload size={15} />{closeState.error ? "重试同步并退出" : closeState.sync.busy ? "等待推送后退出" : "同步并退出"}</Button>}
+          <Button onClick={() => closeChoice("cancel")} disabled={closeState.phase === "preparing"}>{closeState.phase === "syncing" ? closeState.restart ? "取消自动重启" : "取消自动退出" : "返回编辑"}</Button>
+          {closeState.localError ? !closeState.restart && <Button className="danger-button" onClick={() => closeChoice("discard")} disabled={closeState.phase === "preparing" || closeState.sync?.busy}>放弃未保存修改并退出</Button> : <>
+            <Button onClick={() => closeChoice("local")} disabled={closeState.phase !== "confirm" || closeState.sync?.busy}>仅保存本机并{closeState.restart ? "重启" : "退出"}</Button>
+            {closeState.sync?.enabled && (closeState.sync.dirty || closeState.sync.busy || closeState.sync.error) && <Button className="primary" onClick={() => closeChoice("sync")} disabled={closeState.phase !== "confirm"}><CloudUpload size={15} />{closeState.error ? "重试同步并" : closeState.sync.busy ? "等待推送后" : "同步并"}{closeState.restart ? "重启" : "退出"}</Button>}
           </>}
         </div>
       </div>}

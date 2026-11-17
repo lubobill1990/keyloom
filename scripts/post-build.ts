@@ -15,5 +15,10 @@ if (process.env.ELECTROBUN_OS === "win") {
   if (!original.includes("keyloom-dpi-bootstrap-v1")) {
     await writeFile(launcher, `${bootstrap}\n${original}`, "utf8");
   }
+  const inventory = Bun.spawnSync({
+    cmd: ["uv", "run", "--project", "backend", "python", "scripts/update-release.py", "inventory", "--root", resolve(directory, name)],
+    stdout: "inherit", stderr: "inherit",
+  });
+  if (inventory.exitCode !== 0) throw new Error("Cannot generate the installation inventory for safe updates.");
   console.log("Keyloom: verified pre-event-loop Per-Monitor V2 bootstrap included.");
 }

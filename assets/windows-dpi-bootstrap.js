@@ -1,6 +1,11 @@
 // keyloom-dpi-bootstrap-v1: run before Electrobun loads its native event loop.
 import { dlopen as __keyloomDlopen } from "bun:ffi";
+import { resolve as __keyloomResolve } from "node:path";
 if (process.platform === "win32") {
+  const __state = process.env.KEYLOOM_STATE_DIR || (process.env.LOCALAPPDATA && __keyloomResolve(process.env.LOCALAPPDATA, "Keyloom"));
+  if (!__state) throw new Error("Cannot locate the Windows application data directory.");
+  process.env.KEYLOOM_STATE_DIR = __state;
+  process.env.WEBVIEW2_USER_DATA_FOLDER ||= __keyloomResolve(__state, "webview");
   const __dpi = __keyloomDlopen("user32.dll", {
     SetProcessDpiAwarenessContext: { args: ["i64"], returns: "bool" },
     GetThreadDpiAwarenessContext: { args: [], returns: "i64" },

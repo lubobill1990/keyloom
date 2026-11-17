@@ -52,17 +52,45 @@ jobs:
           path: |
             artifacts/keyloom-*-windows-x64*
             artifacts/SHA256SUMS.txt
+            artifacts/latest.unsigned.json
+          if-no-files-found: error
+
+  sign:
+    needs: windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      UV_PYTHON: "3.14"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-windows-x64
+          path: release
+      - name: Install locked verification dependencies
+        run: uv sync --project backend --locked --no-install-project
+      - name: Sign version-bound update manifest
+        env:
+          KEYLOOM_UPDATE_SIGNING_KEY: ${{ secrets.KEYLOOM_UPDATE_SIGNING_KEY }}
+        run: uv run --project backend python scripts/update-release.py sign --directory release --version "$GITHUB_REF_NAME"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: signed-release-windows-x64
+          path: release/*
           if-no-files-found: error
 
   publish:
-    needs: windows
+    needs: sign
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: release-windows-x64
+          name: signed-release-windows-x64
           path: release
       - name: Publish GitHub release
         env:

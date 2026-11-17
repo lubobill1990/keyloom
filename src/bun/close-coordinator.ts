@@ -26,6 +26,13 @@ export class CloseCoordinator {
     this.ports.changed(state);
   }
 
+  private async finish(discard: boolean) {
+    this.preparing = true;
+    if (this.state) this.update({ ...this.state, phase: "preparing" });
+    try { await this.ports.finish(discard); }
+    finally { this.preparing = false; }
+  }
+
   async request() {
     if (this.preparing || this.state) { this.ports.changed(this.state); return; }
     this.preparing = true;
@@ -44,7 +51,7 @@ export class CloseCoordinator {
       context = { phase: "confirm", localError, error: backup.error, sync: backup, pendingPreviews: previews.pendingPreviews };
       this.update(context);
       if (!localError && !previews.pendingPreviews && (!backup.enabled || (!backup.dirty && !backup.busy && !backup.error))) {
-        await this.ports.finish(false);
+        await this.finish(false);
       }
     } catch (error) {
       this.update({
@@ -67,7 +74,7 @@ export class CloseCoordinator {
       if (this.state.sync?.busy) throw new Error("A Git operation is running. Wait for it or cancel automatic exit.");
       if (choice === "local" && this.state.localError) throw new Error("Local changes could not be saved. Return to editing or explicitly discard them.");
       try {
-        await this.ports.finish(choice === "discard");
+        await this.finish(choice === "discard");
         return { closing: true };
       } catch (error) {
         this.update({ ...this.state, phase: "confirm", localError: message(error) });
@@ -89,7 +96,7 @@ export class CloseCoordinator {
           const checked = await this.ports.call({ method: "sync.check" });
           if (generation !== this.generation || !this.state) return { cancelled: true };
           if (!isSyncStatus(checked) || checked.dirty) throw new Error("New changes appeared after the pushed snapshot. Exit was cancelled; stop other writers and retry.");
-          await this.ports.finish(false);
+          await this.finish(false);
           return { closing: true };
         }
         await new Promise((resolve) => setTimeout(resolve, 400));

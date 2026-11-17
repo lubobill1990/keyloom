@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import type { AppResponse, ServiceRequest } from "../shared/types";
-import { isObject } from "../shared/model";
+import type { AppResponse, ServiceRequest, UpdateState } from "../shared/types";
+import { isObject, isUpdateState } from "../shared/model";
 
 type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
 
@@ -12,6 +12,7 @@ export class ServiceBridge {
   onFailure: (message: string) => void = (message) => console.error(message);
   onLocked: (pendingPreviews: number) => void = () => console.info("Keyloom locked.");
   onRecordChanged: (itemId: string) => void = () => {};
+  onUpdateChanged: (state: UpdateState) => void = () => {};
 
   constructor(resources: string, state: string) {
     const candidates = [
@@ -59,6 +60,10 @@ export class ServiceBridge {
         const line = buffer.slice(0, end);
         buffer = buffer.slice(end + 1);
         const packet: unknown = JSON.parse(line);
+        if (isObject(packet) && packet.event === "updateChanged" && isUpdateState(packet.state)) {
+          this.onUpdateChanged(packet.state);
+          continue;
+        }
         if (isObject(packet) && packet.event === "locked" && typeof packet.pendingPreviews === "number") {
           this.onLocked(packet.pendingPreviews);
           continue;

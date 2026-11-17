@@ -10,6 +10,8 @@ Keyloom is an early release, not an independently audited security product.
 - Agent methods do not include arbitrary record reads, recovery export, changing permissions or invoking native dialogs. User-approved writes return receipts, never field values.
 - Concurrent desktop writes use the encrypted record file's revision, not second-resolution timestamps, to avoid overwriting newer CLI changes.
 - Local writes use the existing core's transaction locks and atomic persistence. Clicking the saved-state control performs an actual record read-back.
+- Automatic updates verify an Ed25519-signed, version-bound GitHub manifest and the archive digest before download readiness and again before installation. Signing is isolated from the build and release-publishing jobs.
+- Restart-to-update requires an explicit user action and the existing save/backup exit checks. A scoped external helper preserves the previous program, requires a fresh nonce-bound UI/service health acknowledgement, and restores the program on failure. Vault data and recovery keys are not rolled back or included in program archives.
 
 ## What is deliberately not promised
 
@@ -19,6 +21,7 @@ Keyloom is an early release, not an independently audited security product.
 - Clipboard history, clipboard managers and OS clipboard sync can retain copies. Timed clearing only clears the current clipboard if it still contains the value copied by Keyloom.
 - Git hosts can see ciphertext sizes, file counts and update timing. Old ciphertext remains in history, including data protected by previous keys.
 - SHA256SUMS validates downloaded bytes against a release manifest, not against a compromised publisher.
+- Update signatures depend on the pinned key and the publisher's release-key security; they are not Windows Authenticode certificates or protection against a compromised signing key. A same-user attacker can already replace the installed application.
 - Backups are push-only; Keyloom does not silently merge or force-push conflicting encrypted histories.
 
 ## Operational guidance

@@ -1,4 +1,4 @@
-import type { CloseState, Field, RecordSummary, SyncStatus, VaultRecord, VaultStatus, WindowState } from "./types";
+import type { CloseState, Field, RecordSummary, SyncStatus, UpdateState, VaultRecord, VaultStatus, WindowState } from "./types";
 
 export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -63,7 +63,21 @@ export function isCloseState(value: unknown): value is CloseState {
   return isObject(value) && ["preparing", "confirm", "syncing"].includes(String(value.phase))
     && (value.localError === null || typeof value.localError === "string")
     && (value.error === null || typeof value.error === "string") && (value.sync === null || isSyncStatus(value.sync))
-    && typeof value.pendingPreviews === "number";
+    && typeof value.pendingPreviews === "number" && (value.restart === undefined || typeof value.restart === "boolean");
+}
+
+export function isUpdateState(value: unknown): value is UpdateState {
+  const nullableText = (item: unknown) => item === null || typeof item === "string";
+  return isObject(value) && typeof value.current === "string" && typeof value.phase === "string"
+    && ["idle", "checking", "up-to-date", "downloading", "ready", "installing", "error"].includes(value.phase)
+    && nullableText(value.available) && nullableText(value.error) && nullableText(value.skippedVersion) && nullableText(value.rollback)
+    && typeof value.downloaded === "number" && Number.isFinite(value.downloaded) && value.downloaded >= 0
+    && (value.total === null || (typeof value.total === "number" && Number.isFinite(value.total) && value.total > 0))
+    && typeof value.autoCheck === "boolean" && typeof value.canInstall === "boolean" && typeof value.logAvailable === "boolean"
+    && (value.outcome === null || (isObject(value.outcome) && typeof value.outcome.phase === "string"
+      && typeof value.outcome.from === "string" && typeof value.outcome.to === "string"
+      && (value.outcome.result === null || (typeof value.outcome.result === "string" && ["ok", "rolled-back", "failed"].includes(value.outcome.result)))
+      && typeof value.outcome.message === "string" && typeof value.outcome.acknowledged === "boolean"));
 }
 
 export function filterRecords(records: RecordSummary[], query: string, filter: string) {

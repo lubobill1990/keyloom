@@ -22,6 +22,7 @@ from keyloom_agents import install_skills
 from keyloom_errors import KeyloomError
 from keyloom_ipc import IPCBroker
 from keyloom_sync import GitSync
+from keyloom_update import UpdateManager
 
 
 class ServiceError(KeyloomError):
@@ -168,6 +169,8 @@ class VaultService:
         self.closing_requested = False
         self._ui_versions: dict[str, str] = {}
         self.notify = None
+        self.updates: UpdateManager | None = None
+        self.update_health_pending = bool(os.environ.get("KEYLOOM_UPDATE_HEALTH") or os.environ.get("KEYLOOM_UPDATE_NONCE"))
         self.settings_path = self.state_directory / "settings.json"
         self.settings: dict[str, Any] = {"autoLockMinutes": 5}
         if self.settings_path.exists():
@@ -334,6 +337,16 @@ class VaultService:
         vault = self._require_vault()
         return hashlib.sha256(vault._record_path(record_id).read_bytes()).hexdigest()
 
+    def update_manager(self) -> UpdateManager:
+        if self.updates is None:
+            root = Path(sys.executable).resolve().parents[3] if getattr(sys, "frozen", False) else None
+            if root is not None:
+                from keyloom_update_manifest import read_json
+                if read_json(root / "Resources" / "version.json").get("channel") == "dev":
+                    root = None
+            self.updates = UpdateManager(self.state_directory, install_root=root, notify=self.notify)
+        return self.updates
+
     @staticmethod
     def _receipt(record: dict) -> dict:
         return {"itemId": record["id"], "updatedAt": record["updated_at"], "fieldCount": len(record["fields"])}
@@ -341,12 +354,18 @@ class VaultService:
     def cli_dispatch(self, request: dict) -> dict:
         try:
             if request.get("method") == "cli.sync.push":
+                if self.update_health_pending:
+                    raise KeyloomError("The update startup check has not completed.", "busy")
                 if self.closing_requested:
                     raise KeyloomError("Keyloom is closing; no new agent backup can start.", "busy")
                 return {"ok": True, "data": self.sync.push()}
             with self._mutex:
-                self._expire()
                 method = text(request, "method")
+                if not method.startswith("cli."):
+                    raise KeyloomError("This CLI operation is not allowed.", "denied")
+                if self.update_health_pending and method not in {"cli.status", "cli.sync.status"}:
+                    raise KeyloomError("The update startup check has not completed.", "busy")
+                self._expire()
                 if method == "cli.status":
                     return {"ok": True, "data": {
                         "state": "open" if self.vault else "locked", "writeEnabled": self.cli_write_enabled,
@@ -416,8 +435,41 @@ class VaultService:
     def _dispatch(self, request: dict[str, Any]) -> Any:
         if not isinstance(request, dict):
             raise ServiceError("请求必须是对象")
-        self._expire()
         method = text(request, "method")
+        if self.update_health_pending and method not in {
+            "status", "update.healthy", "update.status", "update.configure", "update.log", "update.ack",
+            "sync.pause", "sync.resume", "sync.status", "sync.check", "previews.clear", "lock",
+        }:
+            raise ServiceError("The update startup check has not completed; vault changes are blocked.")
+        self._expire()
+        if method == "update.healthy":
+            if not os.environ.get("KEYLOOM_UPDATE_HEALTH") and not os.environ.get("KEYLOOM_UPDATE_NONCE"):
+                return {"marked": False}
+            marked = self.update_manager().mark_healthy(request.get("appPid"))
+            self.update_health_pending = False
+            return marked
+        if method.startswith("update."):
+            updater = self.update_manager()
+            if method == "update.status":
+                return updater.snapshot()
+            if method == "update.check":
+                if type(request.get("manual")) is not bool:
+                    raise ServiceError("Invalid update check request.")
+                return updater.check(request["manual"])
+            if method == "update.configure":
+                return updater.configure(request.get("autoCheck"))
+            if method == "update.skip":
+                return updater.skip()
+            if method == "update.ack":
+                return updater.acknowledge()
+            if method == "update.log":
+                path = updater.root / "update.log"
+                if not path.is_file():
+                    raise ServiceError("There is no update log yet.")
+                return str(path)
+            if method == "update.prepare":
+                return updater.prepare(request.get("mode"), request.get("appPid"), request.get("launcherPid"), self.data_directory)
+            raise ServiceError("Unsupported updater operation.")
         if not self.closing_requested and method != "sync.pause":
             self.sync.tick()
         if method == "sync.pause":
